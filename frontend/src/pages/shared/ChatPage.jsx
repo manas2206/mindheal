@@ -87,7 +87,8 @@ export default function ChatPage() {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
     if (!mountedRef.current) return
 
-    const wsUrl = `ws://localhost:8000/api/v1/messages/ws/${user.user_id}?token=${token}`
+    const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1'
+    const wsUrl = `${WS_BASE}/messages/ws/${user.user_id}?token=${token}`
     try {
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
