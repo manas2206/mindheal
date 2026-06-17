@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Heart, ArrowLeft, Star, Globe, Clock,
+  Heart, ArrowLeft, Star,
   Calendar, Video, MessageCircle, Phone, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -30,9 +30,7 @@ export default function BookingPage() {
   const [sessionType, setSessionType] = useState('video')
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
-  useEffect(() => {
-    fetchTherapist()
-  }, [therapistId])
+  useEffect(() => { fetchTherapist() }, [therapistId])
 
   const fetchTherapist = async () => {
     try {
@@ -73,8 +71,8 @@ export default function BookingPage() {
 
       const scheduledAt = `${selectedDate}T${timeMap[selectedTime]}:00`
 
-      // Step 1 — Create appointment
-      const apptRes = await api.post('/appointments/', {
+      // Step 1 — Create appointment (no trailing slash!)
+      const apptRes = await api.post('/appointments', {
         therapist_id: parseInt(therapistId),
         scheduled_at: scheduledAt,
         session_type: sessionType,
@@ -95,7 +93,7 @@ export default function BookingPage() {
         amount: amount,
         currency: currency,
         name: 'MindHeal',
-        description: `Therapy Session with Therapist #${therapistId}`,
+        description: `Therapy Session with ${therapist?.full_name || 'Therapist'}`,
         order_id: order_id,
         handler: async (response) => {
           try {
@@ -106,19 +104,17 @@ export default function BookingPage() {
               appointment_id: appointment.id,
             })
             toast.success('🎉 Payment successful! Appointment confirmed!')
-            navigate('/dashboard')
+            navigate('/appointments')
           } catch (error) {
             toast.error('Payment verification failed. Contact support.')
           }
         },
         prefill: {
           name: user?.full_name || '',
-          email: '',
+          email: user?.email || '',
           contact: '',
         },
-        theme: {
-          color: '#16a34a',
-        },
+        theme: { color: '#16a34a' },
         modal: {
           ondismiss: () => {
             toast.error('Payment cancelled')
@@ -136,7 +132,6 @@ export default function BookingPage() {
 
     } catch (error) {
       toast.error(error.message || 'Booking failed')
-    } finally {
       setBooking(false)
     }
   }
@@ -155,8 +150,7 @@ export default function BookingPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
         <div className="max-w-4xl mx-auto flex items-center gap-4">
-          <button
-            onClick={() => navigate('/therapists')}
+          <button onClick={() => navigate('/therapists')}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -165,7 +159,7 @@ export default function BookingPage() {
             <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
               <Heart className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gray-900">Mind Unleash</span>
+            <span className="font-bold text-gray-900">MindHeal</span>
           </div>
         </div>
       </header>
@@ -179,11 +173,20 @@ export default function BookingPage() {
             {/* Therapist Card */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary-700 font-bold text-xl">T{therapist?.id}</span>
+                <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {therapist?.profile_picture ? (
+                    <img src={`https://mindheal-production.up.railway.app${therapist.profile_picture}`}
+                      alt={therapist?.full_name}
+                      className="w-full h-full object-cover rounded-2xl"
+                    />
+                  ) : (
+                    <span className="text-primary-700 font-bold text-xl">
+                      {therapist?.full_name?.charAt(0) || 'T'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1">
-                  <h2 className="font-bold text-gray-900 text-lg">Therapist #{therapist?.id}</h2>
+                  <h2 className="font-bold text-gray-900 text-lg">{therapist?.full_name}</h2>
                   <p className="text-gray-500 text-sm">{therapist?.specializations?.[0]}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -212,9 +215,7 @@ export default function BookingPage() {
                   { value: 'chat', icon: <MessageCircle className="w-5 h-5" />, label: 'Chat' },
                   { value: 'audio', icon: <Phone className="w-5 h-5" />, label: 'Audio' },
                 ].map((type) => (
-                  <button
-                    key={type.value}
-                    onClick={() => setSessionType(type.value)}
+                  <button key={type.value} onClick={() => setSessionType(type.value)}
                     className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                       sessionType === type.value
                         ? 'border-primary-600 bg-primary-50 text-primary-600'
@@ -231,13 +232,7 @@ export default function BookingPage() {
             {/* Calendar */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Select Date & Time</h3>
-              </div>
-
-              {/* Month navigation */}
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
                   className="p-1 hover:bg-gray-100 rounded-lg"
                 >
                   <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -245,26 +240,21 @@ export default function BookingPage() {
                 <span className="font-medium text-gray-900">
                   {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </span>
-                <button
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
                   className="p-1 hover:bg-gray-100 rounded-lg"
                 >
                   <ChevronRight className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
 
-              {/* Day headers */}
               <div className="grid grid-cols-7 mb-2">
                 {DAYS.map(day => (
                   <div key={day} className="text-center text-xs font-medium text-gray-400 py-1">{day}</div>
                 ))}
               </div>
 
-              {/* Calendar grid */}
               <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: firstDay }).map((_, i) => (
-                  <div key={`empty-${i}`} />
-                ))}
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1
                   const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -272,12 +262,8 @@ export default function BookingPage() {
                   const isPast = new Date(dateStr) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
                   const isSelected = selectedDate === dateStr
                   const isToday = dateStr === today.toISOString().split('T')[0]
-
                   return (
-                    <button
-                      key={day}
-                      disabled={isPast}
-                      onClick={() => setSelectedDate(dateStr)}
+                    <button key={day} disabled={isPast} onClick={() => setSelectedDate(dateStr)}
                       className={`aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
                         isPast ? 'text-gray-300 cursor-not-allowed' :
                         isSelected ? 'bg-primary-600 text-white' :
@@ -291,15 +277,12 @@ export default function BookingPage() {
                 })}
               </div>
 
-              {/* Time slots */}
               {selectedDate && (
                 <div className="mt-5">
                   <h4 className="font-medium text-gray-900 mb-3 text-sm">Available Times</h4>
                   <div className="grid grid-cols-5 gap-2">
                     {TIME_SLOTS.map((time) => (
-                      <button
-                        key={time}
-                        onClick={() => setSelectedTime(time)}
+                      <button key={time} onClick={() => setSelectedTime(time)}
                         className={`py-2 px-1 rounded-lg text-xs font-medium transition-all ${
                           selectedTime === time
                             ? 'bg-primary-600 text-white'
@@ -316,14 +299,13 @@ export default function BookingPage() {
           </div>
 
           {/* Right — Booking Summary */}
-          <div className="space-y-4">
+          <div>
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm sticky top-24">
               <h3 className="font-semibold text-gray-900 mb-4">Booking Summary</h3>
-
               <div className="space-y-3 mb-5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Therapist</span>
-                  <span className="font-medium">#{therapistId}</span>
+                  <span className="font-medium">{therapist?.full_name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Session Type</span>
@@ -351,21 +333,19 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleBooking}
+              <button onClick={handleBooking}
                 disabled={booking || !selectedDate || !selectedTime}
                 className="btn-primary w-full py-3 flex items-center justify-center gap-2"
               >
-                {booking ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <Calendar className="w-4 h-4" />
-                )}
-                {booking ? 'Booking...' : 'Confirm Booking'}
+                {booking
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  : <Calendar className="w-4 h-4" />
+                }
+                {booking ? 'Processing...' : 'Confirm & Pay'}
               </button>
 
-              <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1">
-                🔒 100% Secure Payment
+              <p className="text-center text-xs text-gray-400 mt-3">
+                🔒 100% Secure Payment via Razorpay
               </p>
             </div>
           </div>
