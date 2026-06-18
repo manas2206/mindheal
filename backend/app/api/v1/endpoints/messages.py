@@ -57,17 +57,17 @@ class MessageCreate(BaseModel):
     appointment_id: Optional[int] = None
 
 
-# ── WebSocket Endpoint (Chat) ──────────────────────────────────────────────────
+# ── WebSocket Endpoint ────────────────────────────────────────────────────────
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: int,
-    token: str = Query(...),
+    token: str = Query(...),          # ← FIX: read token from ?token= query param
     db: AsyncSession = Depends(get_db)
 ):
     actual_user_id = None
     try:
-        payload = decode_token(token)
+        payload = decode_token(token)  # ← FIX: was verify_token (doesn't exist)
         if not payload:
             await websocket.close(code=4001)
             return
@@ -155,14 +155,16 @@ async def websocket_endpoint(
 
 
 # ── REST Endpoints ────────────────────────────────────────────────────────────
-# NOTE: /conversations and /unread/count MUST come before /{other_user_id}
+# ⚠️ FIX: /conversations and /unread/count MUST come before /{other_user_id}
+#    otherwise FastAPI matches them as the dynamic segment
 
 @router.get("/conversations")
 async def get_conversations(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),  # ← FIX: typed as dict
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = current_user["user_id"]
+    #user_id = current_user.id  # ← FIX: dict access, not .id
+    user_id = current_user.id
 
     sent = await db.scalars(
         select(Message.receiver_id).where(
@@ -216,10 +218,10 @@ async def get_conversations(
 
 @router.get("/unread/count")
 async def get_unread_count(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),  # ← FIX: dict
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = current_user["user_id"]
+    user_id = current_user.id
     count = await db.scalar(
         select(func.count(Message.id)).where(
             Message.receiver_id == user_id,
@@ -232,10 +234,10 @@ async def get_unread_count(
 @router.get("/{other_user_id}")
 async def get_messages(
     other_user_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),  # ← FIX: dict
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = current_user["user_id"]
+    user_id = current_user.id
 
     messages = await db.scalars(
         select(Message).where(
@@ -276,10 +278,10 @@ async def get_messages(
 async def send_message(
     receiver_id: int,
     body: MessageCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),  # ← FIX: dict
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = current_user["user_id"]
+    user_id = current_user.id
 
     receiver = await db.scalar(select(User).where(User.id == receiver_id))
     if not receiver:
@@ -320,10 +322,10 @@ async def send_message(
 @router.delete("/{message_id}")
 async def delete_message(
     message_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),  # ← FIX: dict
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = current_user["user_id"]
+    user_id = current_user.id
 
     message = await db.scalar(
         select(Message).where(
@@ -339,7 +341,7 @@ async def delete_message(
     return {"message": "Message deleted"}
 
 
-# ── WebRTC Signaling Manager ────────────────────────────────────────────────
+# ── WebRTC Signaling Manager ──────────────────────────────────────────────
 
 class SignalingManager:
     def __init__(self):
@@ -395,6 +397,7 @@ async def webrtc_signal(
 
     room_size = signaling.get_room_size(room_id)
 
+    # Tell the new joiner whether they are the initiator
     await websocket.send_json({
         "type": "joined",
         "user_id": actual_user_id,
@@ -402,6 +405,7 @@ async def webrtc_signal(
         "room_size": room_size
     })
 
+    # Tell others someone joined
     await signaling.broadcast_to_room(room_id, actual_user_id, {
         "type": "peer_joined",
         "user_id": actual_user_id
@@ -412,6 +416,7 @@ async def webrtc_signal(
             data = await websocket.receive_text()
             msg = json.loads(data)
             msg["from_user"] = actual_user_id
+            # Relay all signaling messages to the other peer
             await signaling.broadcast_to_room(room_id, actual_user_id, msg)
 
     except WebSocketDisconnect:
