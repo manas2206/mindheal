@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Mic, MicOff, Video, VideoOff, Phone,
   MessageCircle, Monitor, MonitorOff, Heart,
-  Clock, AlertTriangle, Star, X, Users,
-  Wifi, WifiOff
+  Clock, AlertTriangle, Star, X, Users, Wifi
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
@@ -55,8 +54,8 @@ export default function VideoConsultation() {
   const timerRef = useRef(null)
   const chatEndRef = useRef(null)
   const mountedRef = useRef(true)
+  const isInitiatorRef = useRef(false)
 
-  // ── Fetch appointment ─────────────────────────────────────────────────────
   useEffect(() => {
     fetchAppointment()
     return () => {
@@ -77,14 +76,12 @@ export default function VideoConsultation() {
     }
   }
 
-  // ── Start everything once appointment loaded ──────────────────────────────
   useEffect(() => {
     if (!appointment || loading) return
     initCamera()
     startTimer()
   }, [appointment, loading])
 
-  // ── Timer ─────────────────────────────────────────────────────────────────
   const startTimer = () => {
     timerRef.current = setInterval(() => {
       if (!mountedRef.current) return
@@ -109,7 +106,6 @@ export default function VideoConsultation() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // ── Camera & Mic ──────────────────────────────────────────────────────────
   const initCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -120,21 +116,22 @@ export default function VideoConsultation() {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
       }
-      // Start signaling after camera is ready
       connectSignaling()
     } catch (error) {
       console.warn('Camera unavailable:', error)
-      toast('Camera/mic not found — joining without video', { icon: '📷' })
+      toast('Camera/mic not available — joining without video', { icon: '📷' })
       connectSignaling()
     }
   }
 
-  // ── WebRTC Signaling ──────────────────────────────────────────────────────
   const connectSignaling = useCallback(() => {
     if (!mountedRef.current) return
     const token = localStorage.getItem('access_token')
     const roomId = `appt_${appointmentId}`
-    const wsUrl = `ws://localhost:8000/api/v1/messages/signal/${roomId}?token=${token}`
+
+    // ── Use env variable for WebSocket URL ──────────────────────────────────
+    const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1'
+    const wsUrl = `${WS_BASE}/messages/signal/${roomId}?token=${token}`
 
     try {
       const ws = new WebSocket(wsUrl)
@@ -161,6 +158,7 @@ export default function VideoConsultation() {
         if (!mountedRef.current) return
         setSigConnected(false)
         setConnectionState('error')
+        toast.error('Signaling connection failed')
       }
     } catch (error) {
       setConnectionState('error')
@@ -175,22 +173,16 @@ export default function VideoConsultation() {
 
   const handleSignalingMessage = async (msg) => {
     switch (msg.type) {
-
       case 'joined':
         setIsInitiator(msg.is_initiator)
-        if (!msg.is_initiator) {
-          // Second to join — wait for offer
-          setConnectionState('waiting')
-        } else {
-          setConnectionState('waiting_peer')
-        }
+        isInitiatorRef.current = msg.is_initiator
+        setConnectionState(msg.is_initiator ? 'waiting_peer' : 'waiting')
         break
 
       case 'peer_joined':
-        // The other person joined — if we are initiator, create offer
         setPeerConnected(true)
         setConnectionState('connecting_peer')
-        if (isInitiator || !peerRef.current) {
+        if (isInitiatorRef.current || !peerRef.current) {
           await createPeerAndOffer()
         }
         break
@@ -225,18 +217,15 @@ export default function VideoConsultation() {
     }
   }
 
-  // ── WebRTC Peer Connection ────────────────────────────────────────────────
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection(ICE_SERVERS)
 
-    // Add local tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
         pc.addTrack(track, localStreamRef.current)
       })
     }
 
-    // Handle remote stream
     pc.ontrack = (event) => {
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0]
@@ -245,14 +234,12 @@ export default function VideoConsultation() {
       }
     }
 
-    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         sendSignal({ type: 'ice', candidate: event.candidate })
       }
     }
 
-    // Connection state changes
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState
       if (!mountedRef.current) return
@@ -302,7 +289,6 @@ export default function VideoConsultation() {
     }
   }
 
-  // ── Controls ──────────────────────────────────────────────────────────────
   const toggleMute = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach(track => {
@@ -323,12 +309,10 @@ export default function VideoConsultation() {
 
   const toggleScreenShare = async () => {
     if (isScreenSharing) {
-      // Stop screen share, go back to camera
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         localStreamRef.current = stream
         if (localVideoRef.current) localVideoRef.current.srcObject = stream
-
         if (peerRef.current) {
           const videoSender = peerRef.current.getSenders().find(s => s.track?.kind === 'video')
           if (videoSender) videoSender.replaceTrack(stream.getVideoTracks()[0])
@@ -339,24 +323,18 @@ export default function VideoConsultation() {
         toast.error('Could not switch back to camera')
       }
     } else {
-      // Start screen share
       try {
         const screen = await navigator.mediaDevices.getDisplayMedia({ video: true })
         const screenTrack = screen.getVideoTracks()[0]
-
         if (localVideoRef.current) {
           const combined = new MediaStream([screenTrack, ...localStreamRef.current.getAudioTracks()])
           localVideoRef.current.srcObject = combined
         }
-
         if (peerRef.current) {
           const videoSender = peerRef.current.getSenders().find(s => s.track?.kind === 'video')
           if (videoSender) videoSender.replaceTrack(screenTrack)
         }
-
-        screenTrack.onended = () => {
-          setIsScreenSharing(false)
-        }
+        screenTrack.onended = () => setIsScreenSharing(false)
         setIsScreenSharing(true)
         toast('Screen sharing started', { icon: '🖥️' })
       } catch (e) {
@@ -377,7 +355,6 @@ export default function VideoConsultation() {
     setNewMessage('')
   }
 
-  // ── End Call ──────────────────────────────────────────────────────────────
   const handleEndCall = async (reason = 'manual') => {
     clearInterval(timerRef.current)
     setSessionEnded(true)
@@ -388,7 +365,6 @@ export default function VideoConsultation() {
       toast.success('Session completed — 50 minutes reached!', { duration: 3000 })
     }
 
-    // Mark appointment complete
     try {
       if (user?.role !== 'therapist') {
         await api.put(`/appointments/${appointmentId}/complete`)
@@ -437,7 +413,6 @@ export default function VideoConsultation() {
     }
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
   const formatRemaining = () => {
     const r = SESSION_DURATION - sessionTime
@@ -451,7 +426,7 @@ export default function VideoConsultation() {
       case 'connecting_peer': return { text: 'Connecting...', color: 'text-yellow-400' }
       case 'connected': return { text: 'Connected', color: 'text-green-400' }
       case 'peer_disconnected': return { text: 'Participant disconnected', color: 'text-red-400' }
-      case 'error': return { text: 'Connection error', color: 'text-red-400' }
+      case 'error': return { text: 'Connection error — try refreshing', color: 'text-red-400' }
       default: return { text: 'Initializing...', color: 'text-gray-400' }
     }
   }
@@ -508,7 +483,7 @@ export default function VideoConsultation() {
               <textarea
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="How was the video session? Was the therapist helpful?"
+                placeholder="How was the video session?"
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
               />
@@ -566,21 +541,19 @@ export default function VideoConsultation() {
           <span className="text-white font-semibold">MindHeal</span>
           <span className="text-gray-500">•</span>
           <span className="text-gray-300 text-sm hidden sm:block">
-            {appointment?.therapist_name || appointment?.patient_name || `Session #${appointmentId}`}
+            {user?.role === 'user'
+              ? (appointment?.therapist_name || 'Video Session')
+              : (appointment?.patient_name || 'Video Session')
+            }
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Connection status */}
           <div className={`flex items-center gap-1.5 text-xs ${connLabel.color}`}>
-            {connectionState === 'connected'
-              ? <Wifi className="w-3 h-3" />
-              : <WifiOff className="w-3 h-3" />
-            }
+            <Wifi className="w-3 h-3" />
             <span className="hidden sm:block">{connLabel.text}</span>
           </div>
 
-          {/* Timer */}
           {!sessionEnded && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
               SESSION_DURATION - sessionTime <= WARNING_TIME
@@ -608,7 +581,7 @@ export default function VideoConsultation() {
         {/* Video Grid */}
         <div className="flex-1 relative bg-gray-950 p-2 lg:p-4">
 
-          {/* Remote Video (full screen) */}
+          {/* Remote Video */}
           <div className="w-full h-full bg-gray-800 rounded-2xl overflow-hidden relative">
             <video
               ref={remoteVideoRef}
@@ -617,7 +590,6 @@ export default function VideoConsultation() {
               className="w-full h-full object-cover"
             />
 
-            {/* Show placeholder when not connected */}
             {!peerConnected && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
@@ -631,18 +603,22 @@ export default function VideoConsultation() {
                     }
                   </p>
                   <p className={`text-sm mt-2 ${connLabel.color}`}>{connLabel.text}</p>
-                  {connectionState === 'waiting_peer' && (
+                  {(connectionState === 'waiting_peer' || connectionState === 'connecting_peer') && (
                     <div className="flex items-center justify-center gap-1 mt-3">
                       <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}}/>
                       <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}}/>
                       <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}}/>
                     </div>
                   )}
+                  {connectionState === 'error' && (
+                    <p className="text-red-400 text-xs mt-2 px-4 text-center">
+                      WebSocket connection failed.<br/>Video calls require a stable connection.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Remote name overlay */}
             {peerConnected && (
               <div className="absolute top-4 left-4 bg-black bg-opacity-60 rounded-xl px-3 py-1.5">
                 <p className="text-white text-sm font-medium">
@@ -654,7 +630,6 @@ export default function VideoConsultation() {
               </div>
             )}
 
-            {/* Session ended overlay */}
             {sessionEnded && !showReviewModal && (
               <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
                 <div className="text-center">
@@ -703,9 +678,7 @@ export default function VideoConsultation() {
               ) : (
                 messages.map(msg => (
                   <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-48 rounded-xl px-3 py-2 ${
-                      msg.isMe ? 'bg-primary-600' : 'bg-gray-700'
-                    }`}>
+                    <div className={`max-w-48 rounded-xl px-3 py-2 ${msg.isMe ? 'bg-primary-600' : 'bg-gray-700'}`}>
                       <p className="text-white text-xs font-medium mb-0.5 opacity-70">{msg.sender}</p>
                       <p className="text-white text-sm">{msg.text}</p>
                       <p className="text-white text-xs opacity-50 mt-0.5 text-right">{msg.time}</p>
@@ -757,8 +730,6 @@ export default function VideoConsultation() {
           </div>
         ) : (
           <div className="flex items-center justify-center gap-3 lg:gap-4">
-
-            {/* Mute */}
             <button onClick={toggleMute}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                 isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
@@ -768,7 +739,6 @@ export default function VideoConsultation() {
               {isMuted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
             </button>
 
-            {/* Video */}
             <button onClick={toggleVideo}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                 isVideoOff ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
@@ -778,7 +748,6 @@ export default function VideoConsultation() {
               {isVideoOff ? <VideoOff className="w-5 h-5 text-white" /> : <Video className="w-5 h-5 text-white" />}
             </button>
 
-            {/* Screen Share */}
             <button onClick={toggleScreenShare}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                 isScreenSharing ? 'bg-primary-600 hover:bg-primary-700' : 'bg-gray-700 hover:bg-gray-600'
@@ -788,7 +757,6 @@ export default function VideoConsultation() {
               {isScreenSharing ? <MonitorOff className="w-5 h-5 text-white" /> : <Monitor className="w-5 h-5 text-white" />}
             </button>
 
-            {/* Chat */}
             <button onClick={() => setShowChat(!showChat)}
               className={`w-12 h-12 rounded-full flex items-center justify-center transition-all relative ${
                 showChat ? 'bg-primary-600 hover:bg-primary-700' : 'bg-gray-700 hover:bg-gray-600'
@@ -797,20 +765,16 @@ export default function VideoConsultation() {
             >
               <MessageCircle className="w-5 h-5 text-white" />
               {messages.length > 0 && !showChat && (
-                <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white" style={{fontSize:'8px'}}>
-                  {messages.length}
-                </span>
+                <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full" />
               )}
             </button>
 
-            {/* End Call */}
             <button onClick={() => handleEndCall('manual')}
               className="w-16 h-12 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center transition-all ml-2"
               title="End call"
             >
               <Phone className="w-5 h-5 text-white rotate-[135deg]" />
             </button>
-
           </div>
         )}
       </div>
