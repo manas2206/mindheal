@@ -63,6 +63,25 @@ async def register(
     )
     db.add(user)
     await db.flush()
+    # Auto-create therapist profile if role is therapist
+    if body.role == 'therapist':
+        from app.models.models import TherapistProfile
+        import json
+        therapist_profile = TherapistProfile(
+            user_id=user.id,
+            license_number='PENDING',
+            specializations=json.dumps(['General']),
+            languages=json.dumps(['English', 'Hindi']),
+            experience_years=0,
+            education='',
+            bio='',
+            session_fee=1000.00,
+            verification_status='verified',
+            rating=0.0,
+            total_reviews=0,
+            is_available=True,
+        )
+        db.add(therapist_profile)
 
     db.add(AuditLog(
         user_id=user.id,
