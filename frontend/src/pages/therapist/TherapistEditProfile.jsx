@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { getImageUrl } from '../../utils/imageUrl'
 import { useNavigate } from 'react-router-dom'
 import {
   Save, Camera, Plus, X, ArrowLeft,
@@ -10,6 +9,8 @@ import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
+import { getImageUrl } from '../../utils/imageUrl'
+
 
 const SPECIALIZATION_OPTIONS = [
   'Anxiety', 'Depression', 'Stress', 'Relationships',
