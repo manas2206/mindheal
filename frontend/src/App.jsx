@@ -27,7 +27,7 @@ import ChatPage from './pages/shared/ChatPage'
 import VideoConsultation from './pages/shared/VideoConsultation'
 import NotFoundPage from './pages/NotFoundPage'
 import TherapistEarnings from './pages/therapist/TherapistEarnings'
-import TherapistProfile from './pages/therapist/TherapistProfile'
+import TherapistEditProfile from './pages/therapist/TherapistEditProfile'
 
 function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -108,7 +108,7 @@ export default function App() {
         <Route path="/therapist/clients" element={<ProtectedRoute roles={['therapist']}><TherapistClients /></ProtectedRoute>} />
         <Route path="/therapist/reviews" element={<ProtectedRoute roles={['therapist']}><TherapistReviews /></ProtectedRoute>} />
         <Route path="/therapist/earnings" element={<ProtectedRoute roles={['therapist']}><TherapistEarnings /></ProtectedRoute>} />
-        <Route path="/therapist/profile" element={<ProtectedRoute roles={['therapist']}><TherapistProfile /></ProtectedRoute>} />
+        <Route path="/therapist/profile" element={<ProtectedRoute roles={['therapist']}><TherapistEditProfile /></ProtectedRoute>} />
 
         {/* Admin routes */}
         <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminDashboard /></ProtectedRoute>} />
