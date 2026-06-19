@@ -44,6 +44,7 @@ export default function Sidebar({ role = 'user' }) {
     { icon: <Star className="w-5 h-5" />, label: 'Reviews', path: '/therapist/reviews' },
     { icon: <DollarSign className="w-5 h-5" />, label: 'Earnings', path: '/therapist/earnings' },
     { icon: <Bell className="w-5 h-5" />, label: 'Notifications', path: '/notifications' },
+    { icon: <User className="w-5 h-5" />, label: 'My Profile', path: '/therapist/profile' },
   ]
 
   const navItems = role === 'therapist' ? therapistNavItems : userNavItems
