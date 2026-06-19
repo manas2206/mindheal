@@ -133,7 +133,7 @@ export default function TherapistProfile() {
     }
   }
 
-  import { getImageUrl } from '../../utils/imageUrl'
+  
 
   if (loading) {
     return (
