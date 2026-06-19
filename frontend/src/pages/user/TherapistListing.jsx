@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
+import { getImageUrl } from '../../utils/imageUrl'
 
 const SPECIALIZATIONS = ['All', 'Anxiety', 'Depression', 'Relationships', 'Stress', 'Trauma', 'ADHD', 'Grief']
 
@@ -64,7 +65,7 @@ export default function TherapistListing() {
               </button>
               <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center">
                 {user?.profile_picture ? (
-                  <img src={`http://localhost:8000${user.profile_picture}`} alt=""
+                  <img src={getImageUrl(user.profile_picture)} alt=""
                     className="w-9 h-9 rounded-full object-cover" />
                 ) : (
                   <span className="text-primary-700 font-semibold text-sm">{user?.full_name?.charAt(0)}</span>
@@ -109,7 +110,7 @@ export default function TherapistListing() {
                     {/* Avatar */}
                     <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {therapist.profile_picture ? (
-                        <img src={`http://localhost:8000${therapist.profile_picture}`}
+                        <img src={getImageUrl(therapist.profile_picture)}
                           alt={therapist.full_name}
                           className="w-full h-full object-cover rounded-2xl"
                         />

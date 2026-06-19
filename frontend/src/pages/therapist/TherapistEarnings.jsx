@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
+import { getImageUrl } from '../../utils/imageUrl'
 
 export default function TherapistEarnings() {
   const { user } = useAuthStore()
@@ -128,7 +129,7 @@ export default function TherapistEarnings() {
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden">
                         {appt.patient_picture ? (
-                          <img src={`http://localhost:8000${appt.patient_picture}`}
+                          <img src={getImageUrl(appt.patient_picture)}
                             alt={appt.patient_name}
                             className="w-full h-full object-cover"
                           />

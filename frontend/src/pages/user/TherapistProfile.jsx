@@ -5,6 +5,8 @@ import toast from 'react-hot-toast'
 import api from '../../services/api'
 import Sidebar from '../../components/common/Sidebar'
 
+import { getImageUrl } from '../../utils/imageUrl'
+
 export default function TherapistProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -71,7 +73,7 @@ export default function TherapistProfile() {
               {/* Avatar */}
               <div className="w-24 h-24 bg-primary-100 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {therapist?.profile_picture ? (
-                  <img src={`http://localhost:8000${therapist.profile_picture}`}
+                  <img src={getImageUrl(therapist.profile_picture)}
                     alt={therapist?.full_name}
                     className="w-full h-full object-cover rounded-2xl"
                   />

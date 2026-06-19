@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, Camera } from 'lucide-react'
 import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
+import { getImageUrl } from '../../utils/imageUrl'
 
 const schema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -106,7 +107,7 @@ export default function ProfilePage() {
             <div className="relative w-24 h-24 mx-auto mb-4">
               {profilePic ? (
                 <img
-                  src={`http://localhost:8000${profilePic}`}
+                  src={getImageUrl(profilePic)}
                   alt={user?.full_name}
                   className="w-24 h-24 rounded-full object-cover border-4 border-primary-100"
                 />

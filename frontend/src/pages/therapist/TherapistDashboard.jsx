@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getImageUrl } from '../../utils/imageUrl'
 import { useNavigate } from 'react-router-dom'
 import {
   Calendar, CheckCircle, XCircle, Users,
@@ -177,7 +178,7 @@ export default function TherapistDashboard() {
                       {/* Patient avatar */}
                       <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
                         {appt.patient_picture ? (
-                          <img src={`http://localhost:8000${appt.patient_picture}`}
+                          <img src={getImageUrl(appt.patient_picture)}
                             alt={appt.patient_name}
                             className="w-full h-full object-cover"
                           />

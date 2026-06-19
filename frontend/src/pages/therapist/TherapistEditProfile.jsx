@@ -131,7 +131,7 @@ export default function TherapistProfile() {
     }
   }
 
-  const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000'
+  import { getImageUrl } from '../../utils/imageUrl'
 
   if (loading) {
     return (
@@ -180,7 +180,7 @@ export default function TherapistProfile() {
             <div className="relative w-24 h-24 mx-auto mb-4">
               {profilePic ? (
                 <img
-                  src={`${API_BASE}${profilePic}`}
+                  src={getImageUrl(profilePic)}
                   alt={user?.full_name}
                   className="w-24 h-24 rounded-full object-cover border-4 border-primary-100"
                 />
