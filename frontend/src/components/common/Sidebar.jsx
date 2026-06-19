@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Heart, Activity, Calendar, MessageCircle,
   BookOpen, TrendingUp, Bell, LogOut,
-  Menu, X, Users, Star, DollarSign, BarChart2
+  Menu, X, Users, Star, DollarSign, BarChart2, User
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import toast from 'react-hot-toast'
