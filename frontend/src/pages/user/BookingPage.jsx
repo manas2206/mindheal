@@ -9,11 +9,12 @@ import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 
 const TIME_SLOTS = [
-  '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-  '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM',
-  '05:00 PM', '06:00 PM'
+  '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
+  '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+  '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
+  '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+  '05:00 PM', '05:30 PM', '06:00 PM'
 ]
-
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December']
@@ -63,9 +64,15 @@ export default function BookingPage() {
     setBooking(true)
     try {
       const timeMap = {
-        '09:00 AM': '09:00', '10:00 AM': '10:00', '11:00 AM': '11:00',
-        '12:00 PM': '12:00', '01:00 PM': '13:00', '02:00 PM': '14:00',
-        '03:00 PM': '15:00', '04:00 PM': '16:00', '05:00 PM': '17:00',
+        '09:00 AM': '09:00', '09:30 AM': '09:30',
+        '10:00 AM': '10:00', '10:30 AM': '10:30',
+        '11:00 AM': '11:00', '11:30 AM': '11:30',
+        '12:00 PM': '12:00', '12:30 PM': '12:30',
+        '01:00 PM': '13:00', '01:30 PM': '13:30',
+        '02:00 PM': '14:00', '02:30 PM': '14:30',
+        '03:00 PM': '15:00', '03:30 PM': '15:30',
+        '04:00 PM': '16:00', '04:30 PM': '16:30',
+        '05:00 PM': '17:00', '05:30 PM': '17:30',
         '06:00 PM': '18:00'
       }
 
@@ -76,7 +83,7 @@ export default function BookingPage() {
         therapist_id: parseInt(therapistId),
         scheduled_at: scheduledAt,
         session_type: sessionType,
-        duration_mins: 50,
+        duration_mins: 25,
       })
       const appointment = apptRes.data
       toast.success('Appointment created! Proceeding to payment...')
@@ -313,7 +320,7 @@ export default function BookingPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Duration</span>
-                  <span className="font-medium">50 minutes</span>
+                  <span className="font-medium">25 minutes</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Date</span>
