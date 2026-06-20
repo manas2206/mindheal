@@ -9,14 +9,34 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/authStore'
 import api from '../../services/api'
 
-const SESSION_DURATION = 50 * 60
+const SESSION_DURATION = 25 * 60
 const WARNING_TIME = 5 * 60
 
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    {
+      urls: 'turn:global.relay.metered.ca:80',
+      username: 'ac014e41a0b1a231163d6db0',
+      credential: '75F1WAuDDPBJ4+s8',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: 'ac014e41a0b1a231163d6db0',
+      credential: '75F1WAuDDPBJ4+s8',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:443',
+      username: 'ac014e41a0b1a231163d6db0',
+      credential: '75F1WAuDDPBJ4+s8',
+    },
+    {
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: 'ac014e41a0b1a231163d6db0',
+      credential: '75F1WAuDDPBJ4+s8',
+    },
   ]
 }
 
@@ -118,9 +138,24 @@ export default function VideoConsultation() {
       }
       connectSignaling()
     } catch (error) {
-      console.warn('Camera unavailable:', error)
-      toast('Camera/mic not available — joining without video', { icon: '📷' })
-      connectSignaling()
+      console.error('Camera error:', error.name, error.message)
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        })
+        localStreamRef.current = fallbackStream
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = fallbackStream
+        }
+        toast.success('Joined with default camera settings', { duration: 3000 })
+        connectSignaling()
+        return
+      } catch (fallbackError) {
+        console.error('Fallback camera error:', fallbackError.name, fallbackError.message)
+        toast.error(`${fallbackError.name}: ${fallbackError.message}`, { duration: 8000 })
+        connectSignaling()
+      }
     }
   }
 
@@ -129,7 +164,6 @@ export default function VideoConsultation() {
     const token = localStorage.getItem('access_token')
     const roomId = `appt_${appointmentId}`
 
-    // ── Use env variable for WebSocket URL ──────────────────────────────────
     const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1'
     const wsUrl = `${WS_BASE}/messages/signal/${roomId}?token=${token}`
 
@@ -362,7 +396,7 @@ export default function VideoConsultation() {
     cleanup()
 
     if (reason === 'auto') {
-      toast.success('Session completed — 50 minutes reached!', { duration: 3000 })
+      toast.success('Session completed — 25 minutes reached!', { duration: 3000 })
     }
 
     try {
@@ -444,7 +478,6 @@ export default function VideoConsultation() {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
 
-      {/* ── Review Modal ── */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
@@ -506,7 +539,6 @@ export default function VideoConsultation() {
         </div>
       )}
 
-      {/* ── 5 Min Warning ── */}
       {showWarning && !sessionEnded && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 border-2 border-yellow-400 shadow-2xl">
@@ -519,7 +551,7 @@ export default function VideoConsultation() {
                 <p className="text-gray-500 text-sm">5 minutes remaining</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-5">Your video session will end automatically at 50 minutes.</p>
+            <p className="text-gray-600 text-sm mb-5">Your video session will end automatically at 25 minutes.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowWarning(false)}
                 className="flex-1 bg-primary-600 text-white py-2.5 rounded-xl font-medium text-sm"
@@ -532,7 +564,6 @@ export default function VideoConsultation() {
         </div>
       )}
 
-      {/* ── Header ── */}
       <header className="bg-gray-800 px-4 lg:px-6 py-3 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -561,7 +592,7 @@ export default function VideoConsultation() {
                 : 'border-gray-600 bg-gray-700 text-gray-200'
             }`}>
               <Clock className="w-3 h-3" />
-              <span>{formatTime(sessionTime)} / 50:00</span>
+              <span>{formatTime(sessionTime)} / 25:00</span>
               <span className="text-gray-400">•</span>
               <span>{formatRemaining()} left</span>
             </div>
@@ -575,13 +606,10 @@ export default function VideoConsultation() {
         </div>
       </header>
 
-      {/* ── Main Area ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* Video Grid */}
         <div className="flex-1 relative bg-gray-950 p-2 lg:p-4">
 
-          {/* Remote Video */}
           <div className="w-full h-full bg-gray-800 rounded-2xl overflow-hidden relative">
             <video
               ref={remoteVideoRef}
@@ -641,7 +669,6 @@ export default function VideoConsultation() {
             )}
           </div>
 
-          {/* Local Video (PiP) */}
           <div className="absolute bottom-6 right-6 w-40 h-28 lg:w-52 lg:h-36 bg-gray-700 rounded-2xl overflow-hidden border-2 border-gray-600 shadow-2xl">
             <video
               ref={localVideoRef}
@@ -663,7 +690,6 @@ export default function VideoConsultation() {
           </div>
         </div>
 
-        {/* ── In-call Chat ── */}
         {showChat && (
           <div className="w-72 bg-gray-800 flex flex-col border-l border-gray-700">
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
@@ -709,7 +735,6 @@ export default function VideoConsultation() {
         )}
       </div>
 
-      {/* ── Controls ── */}
       <div className="bg-gray-800 px-4 py-4 border-t border-gray-700">
         {sessionEnded ? (
           <div className="flex items-center justify-center gap-3">
