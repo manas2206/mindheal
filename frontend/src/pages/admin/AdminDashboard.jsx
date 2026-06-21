@@ -196,7 +196,7 @@ export default function AdminDashboard() {
                     className="w-full rounded-xl bg-black"
                     style={{ maxHeight: '60vh' }}
                   />
-                  
+                  <a  {/* add this line from */}
                     href={videoUrl}
                     download
                     className="flex items-center justify-center gap-2 mt-4 bg-primary-600 text-white py-2.5 rounded-xl font-medium hover:bg-primary-700 text-sm"
