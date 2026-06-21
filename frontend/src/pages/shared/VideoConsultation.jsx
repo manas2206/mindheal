@@ -75,6 +75,8 @@ export default function VideoConsultation() {
   const chatEndRef = useRef(null)
   const mountedRef = useRef(true)
   const isInitiatorRef = useRef(false)
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
 
   useEffect(() => {
     fetchAppointment()
@@ -136,6 +138,7 @@ export default function VideoConsultation() {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
       }
+      startRecording(stream)
       connectSignaling()
     } catch (error) {
       console.error('Camera error:', error.name, error.message)
@@ -149,6 +152,7 @@ export default function VideoConsultation() {
           localVideoRef.current.srcObject = fallbackStream
         }
         toast.success('Joined with default camera settings', { duration: 3000 })
+        startRecording(fallbackStream)
         connectSignaling()
         return
       } catch (fallbackError) {
@@ -157,6 +161,59 @@ export default function VideoConsultation() {
         connectSignaling()
       }
     }
+  }
+
+  // ── Recording ──────────────────────────────────────────────────────────────
+  const startRecording = (stream) => {
+    try {
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm'
+
+      const recorder = new MediaRecorder(stream, { mimeType })
+      recordedChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          recordedChunksRef.current.push(e.data)
+        }
+      }
+
+      recorder.start(1000)
+      mediaRecorderRef.current = recorder
+    } catch (e) {
+      console.warn('Recording not supported:', e)
+    }
+  }
+
+  const stopAndUploadRecording = async () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') return
+
+    return new Promise((resolve) => {
+      mediaRecorderRef.current.onstop = async () => {
+        try {
+          if (recordedChunksRef.current.length === 0) {
+            resolve()
+            return
+          }
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+
+          if (blob.size > 0) {
+            const formData = new FormData()
+            formData.append('appointment_id', appointmentId)
+            formData.append('file', blob, `session_${appointmentId}.webm`)
+
+            await api.post('/messages/upload-recording', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            })
+          }
+        } catch (e) {
+          console.warn('Recording upload failed:', e)
+        }
+        resolve()
+      }
+      mediaRecorderRef.current.stop()
+    })
   }
 
   const connectSignaling = useCallback(() => {
@@ -393,6 +450,8 @@ export default function VideoConsultation() {
     clearInterval(timerRef.current)
     setSessionEnded(true)
     setShowWarning(false)
+
+    await stopAndUploadRecording()
     cleanup()
 
     if (reason === 'auto') {
@@ -805,4 +864,4 @@ export default function VideoConsultation() {
       </div>
     </div>
   )
-}
+} 
