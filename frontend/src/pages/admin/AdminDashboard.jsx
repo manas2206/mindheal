@@ -477,7 +477,7 @@ export default function AdminDashboard() {
                     {[
                       { label: 'Platform Name', value: 'Mind Unleash' },
                       { label: 'Support Email', value: 'mwp.counseling@gmail.com' },
-                      { label: 'Default Session Duration', value: '50 minutes' },
+                      { label: 'Default Session Duration', value: '25 minutes' },
                       { label: 'OTP Expiry', value: '10 minutes' },
                       { label: 'Access Token Expiry', value: '30 minutes' },
                       { label: 'Refresh Token Expiry', value: '7 days' },
