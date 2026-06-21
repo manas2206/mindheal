@@ -120,7 +120,7 @@ class TherapistAvailability(Base):
     therapist = relationship("TherapistProfile", back_populates="availability")
 
 
-# ── Appointments ──────────────────────────────────────────────────────────────
+# ── Appointments ────────────────────────────────────────────────────────────── updated from 124 to 138 
 class Appointment(Base):
     __tablename__ = "appointments"
 
@@ -128,11 +128,12 @@ class Appointment(Base):
     user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     therapist_id  = Column(Integer, ForeignKey("therapist_profiles.id", ondelete="CASCADE"), nullable=False)
     scheduled_at  = Column(DateTime, nullable=False)
-    duration_mins = Column(Integer, default=50)
+    duration_mins = Column(Integer, default=25)
     session_type  = Column(Enum(SessionType), default=SessionType.video)
     status        = Column(Enum(AppointmentStatus), default=AppointmentStatus.pending)
     meeting_link  = Column(String(500), nullable=True)
     notes         = Column(Text, nullable=True)
+    recording_url = Column(String(500), nullable=True)
     created_at    = Column(DateTime, server_default=func.now())
     updated_at    = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

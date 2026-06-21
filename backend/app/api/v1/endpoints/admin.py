@@ -240,3 +240,117 @@ async def all_reviews(
         }
         for r in reviews
     ]}
+
+
+
+# --------------------------------addd this at the end of   backend/app/api/v1/endpoints/admin.py -------
+
+# ── Session Recordings ──────────────────────────────────────────────────────
+from app.models.models import Message
+
+@router.get("/sessions")
+async def list_all_sessions(
+    session_type: Optional[str] = Query(None),  # chat or video
+    page:  int = Query(1, ge=1),
+    limit: int = Query(20, le=100),
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(Appointment).where(
+        Appointment.status == AppointmentStatus.completed
+    )
+    if session_type:
+        query = query.where(Appointment.session_type == session_type)
+
+    offset = (page - 1) * limit
+    query = query.order_by(Appointment.scheduled_at.desc()).offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    appointments = result.scalars().all()
+
+    sessions = []
+    for appt in appointments:
+        patient = await db.get(User, appt.user_id)
+        therapist_profile = await db.get(TherapistProfile, appt.therapist_id)
+        therapist_user = await db.get(User, therapist_profile.user_id) if therapist_profile else None
+
+        sessions.append({
+            "id": appt.id,
+            "patient_id": appt.user_id,
+            "patient_name": patient.full_name if patient else "Unknown",
+            "therapist_id": appt.therapist_id,
+            "therapist_name": therapist_user.full_name if therapist_user else "Unknown",
+            "session_type": appt.session_type,
+            "scheduled_at": appt.scheduled_at,
+            "duration_mins": appt.duration_mins,
+            "status": appt.status,
+            "has_recording": appt.recording_url is not None if hasattr(appt, 'recording_url') else False,
+        })
+
+    return {"sessions": sessions}
+
+
+@router.get("/sessions/{appointment_id}/chat-transcript")
+async def get_chat_transcript(
+    appointment_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    therapist_profile = await db.get(TherapistProfile, appt.therapist_id)
+    if not therapist_profile:
+        raise HTTPException(status_code=404, detail="Therapist not found")
+
+    therapist_user_id = therapist_profile.user_id
+
+    result = await db.execute(
+        select(Message).where(
+            ((Message.sender_id == appt.user_id) & (Message.receiver_id == therapist_user_id)) |
+            ((Message.sender_id == therapist_user_id) & (Message.receiver_id == appt.user_id))
+        ).order_by(Message.sent_at.asc())
+    )
+    messages = result.scalars().all()
+
+    patient = await db.get(User, appt.user_id)
+    therapist_user = await db.get(User, therapist_user_id)
+
+    transcript = []
+    for msg in messages:
+        sender = patient if msg.sender_id == appt.user_id else therapist_user
+        transcript.append({
+            "id": msg.id,
+            "sender_name": sender.full_name if sender else "Unknown",
+            "sender_role": "patient" if msg.sender_id == appt.user_id else "therapist",
+            "content": msg.content,
+            "sent_at": msg.sent_at,
+        })
+
+    return {
+        "appointment_id": appointment_id,
+        "patient_name": patient.full_name if patient else "Unknown",
+        "therapist_name": therapist_user.full_name if therapist_user else "Unknown",
+        "transcript": transcript,
+    }
+
+
+@router.get("/sessions/{appointment_id}/video-recording")
+async def get_video_recording(
+    appointment_id: int,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    recording_url = getattr(appt, 'recording_url', None)
+    if not recording_url:
+        raise HTTPException(status_code=404, detail="No recording found for this session")
+
+    return {
+        "appointment_id": appointment_id,
+        "recording_url": recording_url,
+    }

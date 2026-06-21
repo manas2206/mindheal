@@ -427,3 +427,39 @@ async def webrtc_signal(
         })
     except Exception as e:
         signaling.leave_room(room_id, actual_user_id)
+        
+        
+# ── Video Recording Upload ────────────────────────────────────────────────────
+import os
+import uuid
+from fastapi import UploadFile, File, Form
+from sqlalchemy import select as sql_select
+
+@router.post("/upload-recording")
+async def upload_recording(
+    appointment_id: int = Form(...),
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.models import Appointment
+
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    # Save file
+    os.makedirs("uploads/recordings", exist_ok=True)
+    ext = file.filename.split(".")[-1] if "." in file.filename else "webm"
+    filename = f"session_{appointment_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = f"uploads/recordings/{filename}"
+
+    with open(filepath, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    recording_url = f"/uploads/recordings/{filename}"
+    appt.recording_url = recording_url
+    await db.commit()
+
+    return {"message": "Recording uploaded successfully", "recording_url": recording_url}
