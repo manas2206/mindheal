@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   Heart, Users, UserCheck, Calendar, DollarSign,
   LogOut, Bell, TrendingUp, Shield, CheckCircle,
-  XCircle, BarChart2, Settings
+  XCircle, BarChart2, Settings, Play, MessageCircle,
+  Video, X, Download
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
@@ -16,8 +17,17 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([])
   const [pendingTherapists, setPendingTherapists] = useState([])
   const [payments, setPayments] = useState([])
+  const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
+
+  // Recording viewer modal state
+  const [showTranscriptModal, setShowTranscriptModal] = useState(false)
+  const [showVideoModal, setShowVideoModal] = useState(false)
+  const [selectedSession, setSelectedSession] = useState(null)
+  const [transcript, setTranscript] = useState(null)
+  const [videoUrl, setVideoUrl] = useState(null)
+  const [loadingRecording, setLoadingRecording] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -25,16 +35,18 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [analyticsRes, usersRes, pendingRes, paymentsRes] = await Promise.all([
+      const [analyticsRes, usersRes, pendingRes, paymentsRes, sessionsRes] = await Promise.all([
         api.get('/admin/analytics'),
         api.get('/admin/users?limit=20'),
         api.get('/admin/therapists/pending'),
         api.get('/admin/payments?limit=20'),
+        api.get('/admin/sessions?limit=50'),
       ])
       setAnalytics(analyticsRes.data)
       setUsers(usersRes.data)
       setPendingTherapists(pendingRes.data.pending_therapists || [])
       setPayments(paymentsRes.data.payments || [])
+      setSessions(sessionsRes.data.sessions || [])
     } catch (error) {
       toast.error('Failed to load admin data')
     } finally {
@@ -77,8 +89,127 @@ export default function AdminDashboard() {
     }
   }
 
+  const API_BASE = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000'
+
+  const handleViewTranscript = async (session) => {
+    setSelectedSession(session)
+    setShowTranscriptModal(true)
+    setLoadingRecording(true)
+    setTranscript(null)
+    try {
+      const res = await api.get(`/admin/sessions/${session.id}/chat-transcript`)
+      setTranscript(res.data)
+    } catch (error) {
+      toast.error('No chat transcript found for this session')
+    } finally {
+      setLoadingRecording(false)
+    }
+  }
+
+  const handleViewVideo = async (session) => {
+    setSelectedSession(session)
+    setShowVideoModal(true)
+    setLoadingRecording(true)
+    setVideoUrl(null)
+    try {
+      const res = await api.get(`/admin/sessions/${session.id}/video-recording`)
+      setVideoUrl(`${API_BASE}${res.data.recording_url}`)
+    } catch (error) {
+      toast.error('No video recording found for this session')
+    } finally {
+      setLoadingRecording(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
+
+      {/* ── Chat Transcript Modal ── */}
+      {showTranscriptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-gray-900">Chat Transcript</h3>
+                <p className="text-gray-500 text-sm">
+                  {selectedSession?.patient_name} ↔ {selectedSession?.therapist_name}
+                </p>
+              </div>
+              <button onClick={() => setShowTranscriptModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {loadingRecording ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-6 h-6 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : !transcript || transcript.transcript.length === 0 ? (
+                <p className="text-gray-400 text-center py-12 text-sm">No messages found for this session</p>
+              ) : (
+                transcript.transcript.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.sender_role === 'patient' ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-xs rounded-xl px-3 py-2 ${
+                      msg.sender_role === 'patient' ? 'bg-gray-100' : 'bg-primary-100'
+                    }`}>
+                      <p className="text-xs font-medium text-gray-500 mb-0.5">{msg.sender_name}</p>
+                      <p className="text-sm text-gray-900">{msg.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(msg.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Video Recording Modal ── */}
+      {showVideoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-gray-900">Video Recording</h3>
+                <p className="text-gray-500 text-sm">
+                  {selectedSession?.patient_name} ↔ {selectedSession?.therapist_name}
+                </p>
+              </div>
+              <button onClick={() => setShowVideoModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-5">
+              {loadingRecording ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-6 h-6 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : !videoUrl ? (
+                <p className="text-gray-400 text-center py-12 text-sm">No video recording available for this session</p>
+              ) : (
+                <div>
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-xl bg-black"
+                    style={{ maxHeight: '60vh' }}
+                  />
+                  
+                    href={videoUrl}
+                    download
+                    className="flex items-center justify-center gap-2 mt-4 bg-primary-600 text-white py-2.5 rounded-xl font-medium hover:bg-primary-700 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Recording
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Sidebar ── */}
       <aside className="hidden lg:flex flex-col w-64 bg-gray-900 fixed inset-y-0">
@@ -86,15 +217,14 @@ export default function AdminDashboard() {
           <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
             <Heart className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-bold text-white">Mind Unleash</span>
+          <span className="text-xl font-bold text-white">MindHeal</span>
         </div>
-
         <nav className="flex-1 p-4 space-y-1">
           {[
             { icon: <BarChart2 className="w-5 h-5" />, label: 'Dashboard', tab: 'overview' },
             { icon: <Users className="w-5 h-5" />, label: 'Users', tab: 'users' },
             { icon: <UserCheck className="w-5 h-5" />, label: 'Therapists', tab: 'therapists' },
-            { icon: <Calendar className="w-5 h-5" />, label: 'Sessions', tab: 'sessions' },
+            { icon: <Calendar className="w-5 h-5" />, label: 'Sessions & Recordings', tab: 'sessions' },
             { icon: <DollarSign className="w-5 h-5" />, label: 'Payments', tab: 'payments' },
             { icon: <Shield className="w-5 h-5" />, label: 'Security', tab: 'security' },
             { icon: <Settings className="w-5 h-5" />, label: 'Settings', tab: 'settings' },
@@ -113,7 +243,6 @@ export default function AdminDashboard() {
             </button>
           ))}
         </nav>
-
         <div className="p-4 border-t border-gray-700">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 bg-primary-600 rounded-full flex items-center justify-center">
@@ -136,8 +265,6 @@ export default function AdminDashboard() {
 
       {/* ── Main Content ── */}
       <div className="flex-1 lg:ml-64">
-
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
           <div className="flex items-center justify-between">
             <div>
@@ -182,7 +309,6 @@ export default function AdminDashboard() {
                       </div>
                     ))}
                   </div>
-
                   {pendingTherapists.length > 0 && (
                     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm mb-6">
                       <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -213,7 +339,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   )}
-
                   <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                     <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <Users className="w-5 h-5 text-primary-600" />Recent Users
@@ -415,12 +540,9 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* ── Sessions Tab ── */}
+              {/* ── Sessions & Recordings Tab ── */}
               {activeTab === 'sessions' && (
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <h2 className="font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-primary-600" />Sessions Overview
-                  </h2>
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
                       { label: 'Total Sessions', value: analytics?.total_appointments || 0, color: 'bg-blue-50 text-blue-600' },
@@ -433,6 +555,75 @@ export default function AdminDashboard() {
                         <p className="text-sm mt-2 font-medium">{stat.label}</p>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                    <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-primary-600" />
+                      Completed Session Recordings ({sessions.length})
+                    </h2>
+                    {sessions.length === 0 ? (
+                      <p className="text-gray-500 text-center py-12 text-sm">No completed sessions yet</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-100">
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Patient</th>
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Therapist</th>
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Type</th>
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Date</th>
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Duration</th>
+                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Recording</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {sessions.map((session) => (
+                              <tr key={session.id} className="hover:bg-gray-50">
+                                <td className="py-3 text-sm font-medium text-gray-900">{session.patient_name}</td>
+                                <td className="py-3 text-sm text-gray-600">{session.therapist_name}</td>
+                                <td className="py-3">
+                                  <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${
+                                    session.session_type === 'video' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {session.session_type}
+                                  </span>
+                                </td>
+                                <td className="py-3 text-xs text-gray-500">
+                                  {new Date(session.scheduled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </td>
+                                <td className="py-3 text-xs text-gray-500">{session.duration_mins} mins</td>
+                                <td className="py-3">
+                                  <div className="flex gap-2">
+                                    {(session.session_type === 'chat' || session.session_type === 'video') && (
+                                      <button onClick={() => handleViewTranscript(session)}
+                                        className="flex items-center gap-1 bg-blue-50 text-blue-600 text-xs px-3 py-1.5 rounded-lg hover:bg-blue-100"
+                                        title="View chat transcript"
+                                      >
+                                        <MessageCircle className="w-3 h-3" />Chat
+                                      </button>
+                                    )}
+                                    {session.session_type === 'video' && (
+                                      <button onClick={() => handleViewVideo(session)}
+                                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg ${
+                                          session.has_recording
+                                            ? 'bg-primary-50 text-primary-600 hover:bg-primary-100'
+                                            : 'bg-gray-50 text-gray-400'
+                                        }`}
+                                        title={session.has_recording ? 'View video recording' : 'No recording available'}
+                                      >
+                                        <Video className="w-3 h-3" />
+                                        {session.has_recording ? 'Video' : 'No video'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -475,7 +666,7 @@ export default function AdminDashboard() {
                   </h2>
                   <div className="space-y-3">
                     {[
-                      { label: 'Platform Name', value: 'Mind Unleash' },
+                      { label: 'Platform Name', value: 'MindHeal' },
                       { label: 'Support Email', value: 'mwp.counseling@gmail.com' },
                       { label: 'Default Session Duration', value: '25 minutes' },
                       { label: 'OTP Expiry', value: '10 minutes' },
