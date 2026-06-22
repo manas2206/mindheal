@@ -44,8 +44,9 @@ app.add_middleware(
         "https://mindheal-nine.vercel.app",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.add_middleware(
