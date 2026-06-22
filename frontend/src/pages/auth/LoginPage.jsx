@@ -80,7 +80,7 @@ export default function LoginPage() {
       {/* Left side — green panel */}
       <div className="hidden lg:flex flex-col justify-between bg-primary-600 p-12 text-white">
         <div className="flex items-center gap-2">
-          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain brightness-0 invert" />
+          <img src="/mindunleash_logo.png" alt="MindUnleash" className="h-8 w-auto object-contain" />
         </div>
         <div>
           <h2 className="text-4xl font-bold mb-4 leading-tight">
@@ -104,10 +104,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Heart className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">MindHeal</span>
+            <img src="/mindunleash_logo.png" alt="MindHeal" className="h-12 w-auto object-contain" />
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
