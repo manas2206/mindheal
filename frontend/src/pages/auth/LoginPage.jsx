@@ -80,10 +80,7 @@ export default function LoginPage() {
       {/* Left side — green panel */}
       <div className="hidden lg:flex flex-col justify-between bg-primary-600 p-12 text-white">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-            <Heart className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold">Mind Unleash</span>
+          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain brightness-0 invert" />
         </div>
         <div>
           <h2 className="text-4xl font-bold mb-4 leading-tight">
