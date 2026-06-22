@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_, func
 from app.core.database import get_db
 from app.core.security import get_current_user, decode_token
-from app.models.models import Message, User
+from app.models.models import Message, User, Appointment
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import json
 import logging
+import os
+import uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -62,12 +64,12 @@ class MessageCreate(BaseModel):
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: int,
-    token: str = Query(...),          # ← FIX: read token from ?token= query param
+    token: str = Query(...),
     db: AsyncSession = Depends(get_db)
 ):
     actual_user_id = None
     try:
-        payload = decode_token(token)  # ← FIX: was verify_token (doesn't exist)
+        payload = decode_token(token)
         if not payload:
             await websocket.close(code=4001)
             return
@@ -155,15 +157,13 @@ async def websocket_endpoint(
 
 
 # ── REST Endpoints ────────────────────────────────────────────────────────────
-# ⚠️ FIX: /conversations and /unread/count MUST come before /{other_user_id}
-#    otherwise FastAPI matches them as the dynamic segment
+# ⚠️ IMPORTANT: Static routes MUST come before dynamic /{param} routes
 
 @router.get("/conversations")
 async def get_conversations(
-    current_user: dict = Depends(get_current_user),  # ← FIX: typed as dict
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    #user_id = current_user.id  # ← FIX: dict access, not .id
     user_id = current_user.id
 
     sent = await db.scalars(
@@ -218,7 +218,7 @@ async def get_conversations(
 
 @router.get("/unread/count")
 async def get_unread_count(
-    current_user: dict = Depends(get_current_user),  # ← FIX: dict
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     user_id = current_user.id
@@ -231,10 +231,39 @@ async def get_unread_count(
     return {"unread_count": count or 0}
 
 
+# ── Video Recording Upload (MUST be before /{other_user_id}) ─────────────────
+@router.post("/upload-recording")
+async def upload_recording(
+    appointment_id: int = Form(...),
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    appt = await db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+
+    os.makedirs("uploads/recordings", exist_ok=True)
+    ext = file.filename.split(".")[-1] if "." in file.filename else "webm"
+    filename = f"session_{appointment_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = f"uploads/recordings/{filename}"
+
+    with open(filepath, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    recording_url = f"/uploads/recordings/{filename}"
+    appt.recording_url = recording_url
+    await db.commit()
+
+    return {"message": "Recording uploaded successfully", "recording_url": recording_url}
+
+
+# ── Dynamic routes (MUST be after all static routes) ─────────────────────────
 @router.get("/{other_user_id}")
 async def get_messages(
     other_user_id: int,
-    current_user: dict = Depends(get_current_user),  # ← FIX: dict
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     user_id = current_user.id
@@ -278,7 +307,7 @@ async def get_messages(
 async def send_message(
     receiver_id: int,
     body: MessageCreate,
-    current_user: dict = Depends(get_current_user),  # ← FIX: dict
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     user_id = current_user.id
@@ -322,7 +351,7 @@ async def send_message(
 @router.delete("/{message_id}")
 async def delete_message(
     message_id: int,
-    current_user: dict = Depends(get_current_user),  # ← FIX: dict
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     user_id = current_user.id
@@ -341,8 +370,7 @@ async def delete_message(
     return {"message": "Message deleted"}
 
 
-# ── WebRTC Signaling Manager ──────────────────────────────────────────────
-
+# ── WebRTC Signaling Manager ──────────────────────────────────────────────────
 class SignalingManager:
     def __init__(self):
         self.rooms: Dict[str, Dict[int, WebSocket]] = {}
@@ -397,7 +425,6 @@ async def webrtc_signal(
 
     room_size = signaling.get_room_size(room_id)
 
-    # Tell the new joiner whether they are the initiator
     await websocket.send_json({
         "type": "joined",
         "user_id": actual_user_id,
@@ -405,7 +432,6 @@ async def webrtc_signal(
         "room_size": room_size
     })
 
-    # Tell others someone joined
     await signaling.broadcast_to_room(room_id, actual_user_id, {
         "type": "peer_joined",
         "user_id": actual_user_id
@@ -416,7 +442,6 @@ async def webrtc_signal(
             data = await websocket.receive_text()
             msg = json.loads(data)
             msg["from_user"] = actual_user_id
-            # Relay all signaling messages to the other peer
             await signaling.broadcast_to_room(room_id, actual_user_id, msg)
 
     except WebSocketDisconnect:
@@ -427,39 +452,3 @@ async def webrtc_signal(
         })
     except Exception as e:
         signaling.leave_room(room_id, actual_user_id)
-        
-        
-# ── Video Recording Upload ────────────────────────────────────────────────────
-import os
-import uuid
-from fastapi import UploadFile, File, Form
-from sqlalchemy import select as sql_select
-
-@router.post("/upload-recording")
-async def upload_recording(
-    appointment_id: int = Form(...),
-    file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    from app.models.models import Appointment
-
-    appt = await db.get(Appointment, appointment_id)
-    if not appt:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-
-    # Save file
-    os.makedirs("uploads/recordings", exist_ok=True)
-    ext = file.filename.split(".")[-1] if "." in file.filename else "webm"
-    filename = f"session_{appointment_id}_{uuid.uuid4().hex[:8]}.{ext}"
-    filepath = f"uploads/recordings/{filename}"
-
-    with open(filepath, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    recording_url = f"/uploads/recordings/{filename}"
-    appt.recording_url = recording_url
-    await db.commit()
-
-    return {"message": "Recording uploaded successfully", "recording_url": recording_url}
