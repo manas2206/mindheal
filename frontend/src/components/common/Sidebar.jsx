@@ -54,10 +54,7 @@ export default function Sidebar({ role = 'user' }) {
       {/* Logo */}
       <div className="flex items-center justify-between p-6 border-b border-gray-100">
         <Link to={role === 'therapist' ? '/therapist/dashboard' : '/dashboard'} className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-            <Heart className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-gray-900">Mind Unleash</span>
+          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain" />
           {role === 'therapist' && (
             <span className="bg-primary-100 text-primary-700 text-xs px-2 py-0.5 rounded-full">Pro</span>
           )}
@@ -96,7 +93,7 @@ export default function Sidebar({ role = 'user' }) {
           <div className="flex items-center gap-3 px-2 mb-3 hover:bg-gray-50 rounded-xl p-2 transition-colors cursor-pointer">
             <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
               {user?.profile_picture ? (
-                <img src={`http://localhost:8000${user.profile_picture}`}
+                <img src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:8000'}${user.profile_picture}`}
                   alt={user?.full_name}
                   className="w-full h-full object-cover rounded-full"
                 />

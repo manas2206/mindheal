@@ -214,10 +214,7 @@ export default function AdminDashboard() {
       {/* ── Sidebar ── */}
       <aside className="hidden lg:flex flex-col w-64 bg-gray-900 fixed inset-y-0">
         <div className="flex items-center gap-2 p-6 border-b border-gray-700">
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-            <Heart className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-white">MindHeal</span>
+          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain brightness-0 invert" />
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {[

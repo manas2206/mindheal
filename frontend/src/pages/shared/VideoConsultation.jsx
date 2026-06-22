@@ -625,10 +625,7 @@ export default function VideoConsultation() {
 
       <header className="bg-gray-800 px-4 lg:px-6 py-3 flex items-center justify-between border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
-            <Heart className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-white font-semibold">MindHeal</span>
+          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-7 w-auto object-contain brightness-0 invert" />
           <span className="text-gray-500">•</span>
           <span className="text-gray-300 text-sm hidden sm:block">
             {user?.role === 'user'

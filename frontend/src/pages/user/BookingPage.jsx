@@ -163,10 +163,7 @@ export default function BookingPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Heart className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-gray-900">MindHeal</span>
+            <img src="/mindunleash_logo.png" alt="MindHeal" className="h-7 w-auto object-contain" />
           </div>
         </div>
       </header>
