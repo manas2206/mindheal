@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Heart, Users, UserCheck, Calendar, DollarSign,
-  LogOut, Bell, TrendingUp, Shield, CheckCircle,
-  XCircle, BarChart2, Settings, Play, MessageCircle,
-  Video, X, Download
+  LogOut, Bell, Shield, CheckCircle,
+  XCircle, BarChart2, Settings, MessageCircle,
+  Video, X, Download, Menu
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
@@ -20,8 +20,8 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  // Recording viewer modal state
   const [showTranscriptModal, setShowTranscriptModal] = useState(false)
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState(null)
@@ -29,9 +29,7 @@ export default function AdminDashboard() {
   const [videoUrl, setVideoUrl] = useState(null)
   const [loadingRecording, setLoadingRecording] = useState(false)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
     try {
@@ -121,6 +119,61 @@ export default function AdminDashboard() {
     }
   }
 
+  const navItems = [
+    { icon: <BarChart2 className="w-5 h-5" />, label: 'Dashboard', tab: 'overview' },
+    { icon: <Users className="w-5 h-5" />, label: 'Users', tab: 'users' },
+    { icon: <UserCheck className="w-5 h-5" />, label: 'Therapists', tab: 'therapists' },
+    { icon: <Calendar className="w-5 h-5" />, label: 'Sessions & Recordings', tab: 'sessions' },
+    { icon: <DollarSign className="w-5 h-5" />, label: 'Payments', tab: 'payments' },
+    { icon: <Shield className="w-5 h-5" />, label: 'Security', tab: 'security' },
+    { icon: <Settings className="w-5 h-5" />, label: 'Settings', tab: 'settings' },
+  ]
+
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain brightness-0 invert" />
+        <button onClick={() => setMobileOpen(false)} className="lg:hidden p-1 text-gray-400 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {navItems.map((item, i) => (
+          <button
+            key={i}
+            onClick={() => { setActiveTab(item.tab); setMobileOpen(false) }}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-left ${
+              activeTab === item.tab
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <div className="p-4 border-t border-gray-700">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 bg-primary-600 rounded-full flex items-center justify-center">
+            <span className="text-white font-semibold text-sm">{user?.full_name?.charAt(0)}</span>
+          </div>
+          <div>
+            <p className="text-white text-sm font-medium">{user?.full_name}</p>
+            <p className="text-gray-400 text-xs">Administrator</p>
+          </div>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors w-full text-sm font-medium"
+        >
+          <LogOut className="w-5 h-5" />
+          Logout
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
 
@@ -187,22 +240,14 @@ export default function AdminDashboard() {
                   <div className="w-6 h-6 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : !videoUrl ? (
-                <p className="text-gray-400 text-center py-12 text-sm">No video recording available for this session</p>
+                <p className="text-gray-400 text-center py-12 text-sm">No video recording available</p>
               ) : (
                 <div>
-                  <video
-                    src={videoUrl}
-                    controls
-                    className="w-full rounded-xl bg-black"
-                    style={{ maxHeight: '60vh' }}
-                  />
-                  <a  
-                    href={videoUrl}
-                    download
+                  <video src={videoUrl} controls className="w-full rounded-xl bg-black" style={{ maxHeight: '60vh' }} />
+                  <a href={videoUrl} download
                     className="flex items-center justify-center gap-2 mt-4 bg-primary-600 text-white py-2.5 rounded-xl font-medium hover:bg-primary-700 text-sm"
                   >
-                    <Download className="w-4 h-4" />
-                    Download Recording
+                    <Download className="w-4 h-4" />Download Recording
                   </a>
                 </div>
               )}
@@ -211,62 +256,38 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Sidebar ── */}
+      {/* ── Mobile hamburger ── */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-gray-900 rounded-xl shadow-md"
+      >
+        <Menu className="w-5 h-5 text-white" />
+      </button>
+
+      {/* ── Mobile overlay ── */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-50" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* ── Mobile Sidebar ── */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 lg:hidden ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <SidebarContent />
+      </aside>
+
+      {/* ── Desktop Sidebar ── */}
       <aside className="hidden lg:flex flex-col w-64 bg-gray-900 fixed inset-y-0">
-        <div className="flex items-center gap-2 p-6 border-b border-gray-700">
-          <img src="/mindunleash_logo.png" alt="MindHeal" className="h-8 w-auto object-contain brightness-0 invert" />
-        </div>
-        <nav className="flex-1 p-4 space-y-1">
-          {[
-            { icon: <BarChart2 className="w-5 h-5" />, label: 'Dashboard', tab: 'overview' },
-            { icon: <Users className="w-5 h-5" />, label: 'Users', tab: 'users' },
-            { icon: <UserCheck className="w-5 h-5" />, label: 'Therapists', tab: 'therapists' },
-            { icon: <Calendar className="w-5 h-5" />, label: 'Sessions & Recordings', tab: 'sessions' },
-            { icon: <DollarSign className="w-5 h-5" />, label: 'Payments', tab: 'payments' },
-            { icon: <Shield className="w-5 h-5" />, label: 'Security', tab: 'security' },
-            { icon: <Settings className="w-5 h-5" />, label: 'Settings', tab: 'settings' },
-          ].map((item, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveTab(item.tab)}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-left ${
-                activeTab === item.tab
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 bg-primary-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-semibold text-sm">{user?.full_name?.charAt(0)}</span>
-            </div>
-            <div>
-              <p className="text-white text-sm font-medium">{user?.full_name}</p>
-              <p className="text-gray-400 text-xs">Administrator</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors w-full text-sm font-medium"
-          >
-            <LogOut className="w-5 h-5" />
-            Logout
-          </button>
-        </div>
+        <SidebarContent />
       </aside>
 
       {/* ── Main Content ── */}
-      <div className="flex-1 lg:ml-64">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40">
-          <div className="flex items-center justify-between">
+      <div className="flex-1 lg:ml-64 min-h-screen">
+        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
+          <div className="flex items-center justify-between pl-10 lg:pl-0">
             <div>
               <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-500 text-sm">Welcome back, {user?.full_name}</p>
+              <p className="text-gray-500 text-sm hidden sm:block">Welcome back, {user?.full_name}</p>
             </div>
             <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg relative">
               <Bell className="w-5 h-5" />
@@ -277,7 +298,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           {loading ? (
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
@@ -294,7 +315,7 @@ export default function AdminDashboard() {
                       { label: 'Total Sessions', value: analytics?.total_appointments || 0, icon: <Calendar className="w-5 h-5" />, color: 'bg-purple-50 text-purple-600', change: '+18%' },
                       { label: 'Total Revenue', value: `₹${analytics?.total_revenue?.toLocaleString() || 0}`, icon: <DollarSign className="w-5 h-5" />, color: 'bg-yellow-50 text-yellow-600', change: '+16%' },
                     ].map((stat, i) => (
-                      <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                      <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
                             {stat.icon}
@@ -315,7 +336,7 @@ export default function AdminDashboard() {
                       </h2>
                       <div className="space-y-3">
                         {pendingTherapists.map((therapist) => (
-                          <div key={therapist.id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border border-yellow-100">
+                          <div key={therapist.id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border border-yellow-100 flex-wrap gap-3">
                             <div>
                               <p className="font-medium text-gray-900">Therapist #{therapist.id}</p>
                               <p className="text-gray-500 text-sm">License: {therapist.license_number}</p>
@@ -341,7 +362,7 @@ export default function AdminDashboard() {
                       <Users className="w-5 h-5 text-primary-600" />Recent Users
                     </h2>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[500px]">
                         <thead>
                           <tr className="border-b border-gray-100">
                             <th className="text-left text-xs font-medium text-gray-500 pb-3">User</th>
@@ -356,7 +377,7 @@ export default function AdminDashboard() {
                             <tr key={u.id} className="hover:bg-gray-50">
                               <td className="py-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span className="text-primary-700 text-xs font-bold">{u.full_name?.charAt(0)}</span>
                                   </div>
                                   <div>
@@ -376,7 +397,7 @@ export default function AdminDashboard() {
                                 </span>
                               </td>
                               <td className="py-3 text-xs text-gray-500">
-                                {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                               </td>
                               <td className="py-3">
                                 <button onClick={() => handleToggleUser(u.id)}
@@ -400,7 +421,7 @@ export default function AdminDashboard() {
                     <Users className="w-5 h-5 text-primary-600" />All Users ({users.length})
                   </h2>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[600px]">
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th className="text-left text-xs font-medium text-gray-500 pb-3">User</th>
@@ -416,7 +437,7 @@ export default function AdminDashboard() {
                           <tr key={u.id} className="hover:bg-gray-50">
                             <td className="py-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
                                   <span className="text-primary-700 text-xs font-bold">{u.full_name?.charAt(0)}</span>
                                 </div>
                                 <div>
@@ -441,7 +462,7 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="py-3 text-xs text-gray-500">
-                              {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                             </td>
                             <td className="py-3">
                               <button onClick={() => handleToggleUser(u.id)}
@@ -470,7 +491,7 @@ export default function AdminDashboard() {
                     ) : (
                       <div className="space-y-3">
                         {pendingTherapists.map((therapist) => (
-                          <div key={therapist.id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border border-yellow-100">
+                          <div key={therapist.id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border border-yellow-100 flex-wrap gap-3">
                             <div>
                               <p className="font-medium text-gray-900">Therapist #{therapist.id}</p>
                               <p className="text-gray-500 text-sm">License: {therapist.license_number}</p>
@@ -504,7 +525,7 @@ export default function AdminDashboard() {
                     <p className="text-gray-500 text-center py-8">No payments yet</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[400px]">
                         <thead>
                           <tr className="border-b border-gray-100">
                             <th className="text-left text-xs font-medium text-gray-500 pb-3">ID</th>
@@ -526,7 +547,7 @@ export default function AdminDashboard() {
                                 </span>
                               </td>
                               <td className="py-3 text-xs text-gray-500">
-                                {new Date(payment.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                {new Date(payment.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                               </td>
                             </tr>
                           ))}
@@ -545,15 +566,14 @@ export default function AdminDashboard() {
                       { label: 'Total Sessions', value: analytics?.total_appointments || 0, color: 'bg-blue-50 text-blue-600' },
                       { label: 'Completed', value: analytics?.completed_appointments || 0, color: 'bg-green-50 text-green-600' },
                       { label: 'Pending', value: (analytics?.total_appointments || 0) - (analytics?.completed_appointments || 0), color: 'bg-yellow-50 text-yellow-600' },
-                      { label: 'Total Revenue', value: `₹${analytics?.total_revenue || 0}`, color: 'bg-purple-50 text-purple-600' },
+                      { label: 'Revenue', value: `₹${analytics?.total_revenue || 0}`, color: 'bg-purple-50 text-purple-600' },
                     ].map((stat, i) => (
-                      <div key={i} className={`rounded-2xl p-5 text-center ${stat.color}`}>
-                        <p className="text-3xl font-bold">{stat.value}</p>
-                        <p className="text-sm mt-2 font-medium">{stat.label}</p>
+                      <div key={i} className={`rounded-2xl p-4 text-center ${stat.color}`}>
+                        <p className="text-2xl font-bold">{stat.value}</p>
+                        <p className="text-sm mt-1 font-medium">{stat.label}</p>
                       </div>
                     ))}
                   </div>
-
                   <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                     <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-primary-600" />
@@ -563,14 +583,13 @@ export default function AdminDashboard() {
                       <p className="text-gray-500 text-center py-12 text-sm">No completed sessions yet</p>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full min-w-[500px]">
                           <thead>
                             <tr className="border-b border-gray-100">
                               <th className="text-left text-xs font-medium text-gray-500 pb-3">Patient</th>
                               <th className="text-left text-xs font-medium text-gray-500 pb-3">Therapist</th>
                               <th className="text-left text-xs font-medium text-gray-500 pb-3">Type</th>
                               <th className="text-left text-xs font-medium text-gray-500 pb-3">Date</th>
-                              <th className="text-left text-xs font-medium text-gray-500 pb-3">Duration</th>
                               <th className="text-left text-xs font-medium text-gray-500 pb-3">Recording</th>
                             </tr>
                           </thead>
@@ -587,30 +606,23 @@ export default function AdminDashboard() {
                                   </span>
                                 </td>
                                 <td className="py-3 text-xs text-gray-500">
-                                  {new Date(session.scheduled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  {new Date(session.scheduled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                 </td>
-                                <td className="py-3 text-xs text-gray-500">{session.duration_mins} mins</td>
                                 <td className="py-3">
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-2 flex-wrap">
                                     {(session.session_type === 'chat' || session.session_type === 'video') && (
                                       <button onClick={() => handleViewTranscript(session)}
-                                        className="flex items-center gap-1 bg-blue-50 text-blue-600 text-xs px-3 py-1.5 rounded-lg hover:bg-blue-100"
-                                        title="View chat transcript"
-                                      >
+                                        className="flex items-center gap-1 bg-blue-50 text-blue-600 text-xs px-2 py-1.5 rounded-lg hover:bg-blue-100">
                                         <MessageCircle className="w-3 h-3" />Chat
                                       </button>
                                     )}
                                     {session.session_type === 'video' && (
                                       <button onClick={() => handleViewVideo(session)}
-                                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg ${
-                                          session.has_recording
-                                            ? 'bg-primary-50 text-primary-600 hover:bg-primary-100'
-                                            : 'bg-gray-50 text-gray-400'
-                                        }`}
-                                        title={session.has_recording ? 'View video recording' : 'No recording available'}
-                                      >
+                                        className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg ${
+                                          session.has_recording ? 'bg-primary-50 text-primary-600 hover:bg-primary-100' : 'bg-gray-50 text-gray-400'
+                                        }`}>
                                         <Video className="w-3 h-3" />
-                                        {session.has_recording ? 'Video' : 'No video'}
+                                        {session.has_recording ? 'Video' : 'None'}
                                       </button>
                                     )}
                                   </div>
@@ -633,22 +645,20 @@ export default function AdminDashboard() {
                   </h2>
                   <div className="space-y-3">
                     {[
-                      { label: 'JWT Authentication', status: 'Active' },
-                      { label: 'Bcrypt Password Hashing (12 rounds)', status: 'Active' },
-                      { label: 'Rate Limiting (10/min auth, 100/min API)', status: 'Active' },
-                      { label: 'CORS Protection', status: 'Active' },
-                      { label: 'OTP Email Verification', status: 'Active' },
-                      { label: 'Refresh Token Rotation', status: 'Active' },
-                      { label: 'Audit Logging', status: 'Active' },
-                      { label: 'SQL Injection Protection (ORM)', status: 'Active' },
-                      { label: 'XSS Protection (DOMPurify)', status: 'Active' },
-                      { label: 'Trusted Host Middleware', status: 'Active' },
-                    ].map((item, i) => (
+                      'JWT Authentication',
+                      'Bcrypt Password Hashing (12 rounds)',
+                      'Rate Limiting (10/min auth, 100/min API)',
+                      'CORS Protection',
+                      'OTP Email Verification',
+                      'Refresh Token Rotation',
+                      'Audit Logging',
+                      'SQL Injection Protection (ORM)',
+                      'XSS Protection (DOMPurify)',
+                      'Trusted Host Middleware',
+                    ].map((label, i) => (
                       <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                        <p className="font-medium text-gray-700">{item.label}</p>
-                        <span className="text-xs px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">
-                          ✅ {item.status}
-                        </span>
+                        <p className="font-medium text-gray-700 text-sm">{label}</p>
+                        <span className="text-xs px-3 py-1 rounded-full font-medium bg-green-100 text-green-700">✅ Active</span>
                       </div>
                     ))}
                   </div>
