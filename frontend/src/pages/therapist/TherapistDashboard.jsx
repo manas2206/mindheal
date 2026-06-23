@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { getImageUrl } from '../../utils/imageUrl'
 import { useNavigate } from 'react-router-dom'
 import {
   Calendar, CheckCircle, XCircle, Users,
-  DollarSign, Activity, BarChart2, Clock, Bell
+  DollarSign, Activity, BarChart2, Clock,
+  Bell, Video, MessageSquare, Lock, AlertCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
+import { getImageUrl } from '../../utils/imageUrl'
 
 export default function TherapistDashboard() {
   const { user } = useAuthStore()
@@ -16,11 +17,16 @@ export default function TherapistDashboard() {
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('upcoming')
+  const [now, setNow] = useState(new Date())
   const [stats, setStats] = useState({
     total: 0, pending: 0, confirmed: 0, completed: 0, earnings: 0
   })
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchData = async () => {
     try {
@@ -65,6 +71,47 @@ export default function TherapistDashboard() {
     } catch (error) { toast.error(error.message) }
   }
 
+  // ── Session time check ────────────────────────────────────────────────────
+  const getSessionStatus = (appt) => {
+    const scheduledAt = new Date(appt.scheduled_at)
+    const sessionEnd = new Date(scheduledAt.getTime() + appt.duration_mins * 60 * 1000)
+    const fiveMinBefore = new Date(scheduledAt.getTime() - 5 * 60 * 1000)
+
+    if (now < fiveMinBefore) {
+      const diffMs = fiveMinBefore - now
+      const diffMins = Math.ceil(diffMs / 60000)
+      const diffHours = Math.floor(diffMins / 60)
+      const remainMins = diffMins % 60
+      if (diffHours > 0) {
+        return { canJoin: false, reason: `Opens in ${diffHours}h ${remainMins}m` }
+      }
+      return { canJoin: false, reason: `Opens in ${diffMins} min` }
+    }
+
+    if (now > sessionEnd) {
+      return { canJoin: false, reason: 'Session expired', expired: true }
+    }
+
+    return { canJoin: true }
+  }
+
+  const handleJoinSession = (appt) => {
+    const status = getSessionStatus(appt)
+    if (!status.canJoin) {
+      toast.error(status.expired ? 'Session time has passed' : `${status.reason}`)
+      return
+    }
+
+    sessionStorage.setItem(`session_${appt.user_id}`, 'true')
+    sessionStorage.setItem(`appt_${appt.user_id}`, appt.id)
+
+    if (appt.session_type === 'chat') {
+      navigate(`/chat/${appt.user_id}`)
+    } else {
+      navigate(`/session/${appt.id}`)
+    }
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-700'
@@ -87,8 +134,6 @@ export default function TherapistDashboard() {
       <Sidebar role="therapist" />
 
       <div className="flex-1 lg:ml-64">
-
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between pl-12 lg:pl-0">
             <div>
@@ -113,8 +158,8 @@ export default function TherapistDashboard() {
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-6">
             {[
-              { label: "Today's Sessions", value: stats.confirmed, icon: <Calendar className="w-5 h-5" />, color: 'bg-blue-50 text-blue-600' },
-              { label: 'This Week', value: stats.total, icon: <Activity className="w-5 h-5" />, color: 'bg-purple-50 text-purple-600' },
+              { label: "Confirmed", value: stats.confirmed, icon: <Calendar className="w-5 h-5" />, color: 'bg-blue-50 text-blue-600' },
+              { label: 'Total Sessions', value: stats.total, icon: <Activity className="w-5 h-5" />, color: 'bg-purple-50 text-purple-600' },
               { label: 'Total Patients', value: stats.total, icon: <Users className="w-5 h-5" />, color: 'bg-green-50 text-green-600' },
               { label: 'Pending', value: stats.pending, icon: <Clock className="w-5 h-5" />, color: 'bg-yellow-50 text-yellow-600' },
               { label: 'Earnings', value: `₹${stats.earnings}`, icon: <DollarSign className="w-5 h-5" />, color: 'bg-primary-50 text-primary-600' },
@@ -172,83 +217,100 @@ export default function TherapistDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredAppointments.map((appt) => (
-                  <div key={appt.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      {/* Patient avatar */}
-                      <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {appt.patient_picture ? (
-                          <img src={getImageUrl(appt.patient_picture)}
-                            alt={appt.patient_name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-primary-700 font-semibold text-sm">
-                            {appt.patient_name?.charAt(0) || 'P'}
-                          </span>
+                {filteredAppointments.map((appt) => {
+                  const sessionStatus = appt.status === 'confirmed' ? getSessionStatus(appt) : null
+
+                  return (
+                    <div key={appt.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors flex-wrap gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {appt.patient_picture ? (
+                            <img src={getImageUrl(appt.patient_picture)}
+                              alt={appt.patient_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-primary-700 font-semibold text-sm">
+                              {appt.patient_name?.charAt(0) || 'P'}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {appt.patient_name || `Patient #${appt.user_id}`}
+                          </p>
+                          <p className="text-gray-500 text-xs flex items-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            {new Date(appt.scheduled_at).toLocaleDateString('en-IN', {
+                              weekday: 'short', day: 'numeric', month: 'short'
+                            })} at {new Date(appt.scheduled_at).toLocaleTimeString('en-IN', {
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </p>
+                          <p className="text-gray-400 text-xs mt-0.5 capitalize">
+                            {appt.session_type} • {appt.duration_mins} mins
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(appt.status)}`}>
+                          {appt.status}
+                        </span>
+
+                        {/* Pending — confirm/cancel */}
+                        {appt.status === 'pending' && (
+                          <div className="flex gap-1">
+                            <button onClick={() => handleConfirm(appt.id)}
+                              className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                              title="Confirm"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleCancel(appt.id)}
+                              className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                              title="Cancel"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Confirmed — join session */}
+                        {appt.status === 'confirmed' && sessionStatus && (
+                          <>
+                            {sessionStatus.canJoin ? (
+                              <button onClick={() => handleJoinSession(appt)}
+                                className="flex items-center gap-1 bg-primary-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-primary-700 font-medium"
+                              >
+                                {appt.session_type === 'chat'
+                                  ? <MessageSquare className="w-3.5 h-3.5" />
+                                  : <Video className="w-3.5 h-3.5" />
+                                }
+                                Join
+                              </button>
+                            ) : sessionStatus.expired ? (
+                              <div className="flex items-center gap-1 bg-gray-50 text-gray-400 text-xs px-3 py-1.5 rounded-lg border border-gray-200">
+                                <Lock className="w-3 h-3" />
+                                Expired
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 text-xs px-3 py-1.5 rounded-lg border border-yellow-200">
+                                <Clock className="w-3 h-3" />
+                                {sessionStatus.reason}
+                              </div>
+                            )}
+                            <button onClick={() => handleComplete(appt.id)}
+                              className="bg-blue-100 text-blue-600 text-xs px-3 py-1.5 rounded-lg hover:bg-blue-200"
+                            >
+                              Complete
+                            </button>
+                          </>
                         )}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          {appt.patient_name || `Patient #${appt.user_id}`}
-                        </p>
-                        <p className="text-gray-500 text-xs flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          {new Date(appt.scheduled_at).toLocaleDateString('en-IN', {
-                            weekday: 'short', day: 'numeric', month: 'short'
-                          })} at {new Date(appt.scheduled_at).toLocaleTimeString('en-IN', {
-                            hour: '2-digit', minute: '2-digit'
-                          })}
-                        </p>
-                        <p className="text-gray-400 text-xs mt-0.5 capitalize">
-                          {appt.session_type} • {appt.duration_mins} mins
-                        </p>
-                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(appt.status)}`}>
-                        {appt.status}
-                      </span>
-
-                      {appt.status === 'pending' && (
-                        <div className="flex gap-1">
-                          <button onClick={() => handleConfirm(appt.id)}
-                            className="p-1.5 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
-                            title="Confirm"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleCancel(appt.id)}
-                            className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
-                            title="Cancel"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-
-                      {appt.status === 'confirmed' && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              if (appt.session_type === 'chat') navigate(`/chat/${appt.user_id}`)
-                              else navigate(`/session/${appt.id}`)
-                            }}
-                            className="bg-primary-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-primary-700"
-                          >
-                            {appt.session_type === 'chat' ? 'Chat' : 'Join'}
-                          </button>
-                          <button onClick={() => handleComplete(appt.id)}
-                            className="bg-blue-100 text-blue-600 text-xs px-3 py-1.5 rounded-lg hover:bg-blue-200"
-                          >
-                            Complete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
