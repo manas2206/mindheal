@@ -88,11 +88,11 @@ export default function AppointmentsPage() {
     }
 
     // Store session info for timer
-    sessionStorage.setItem(`session_${appt.therapist_id}`, 'true')
-    sessionStorage.setItem(`appt_${appt.therapist_id}`, appt.id)
-
+    const therapistUserId = appt.therapist_user_id || appt.therapist_id
+    sessionStorage.setItem(`session_${therapistUserId}`, 'true')
+    sessionStorage.setItem(`appt_${therapistUserId}`, appt.id)
     if (appt.session_type === 'chat') {
-      navigate(`/chat/${appt.therapist_id}`)
+      navigate(`/chat/${therapistUserId}`)
     } else {
       navigate(`/session/${appt.id}`)
     }

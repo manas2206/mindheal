@@ -46,6 +46,7 @@ async def get_enriched_appointment(appt, db):
         "patient_name": patient_user.full_name if patient_user else f"Patient #{appt.user_id}",
         "patient_picture": patient_user.profile_picture if patient_user else None,
         "therapist_id": appt.therapist_id,
+        "therapist_user_id": therapist_user.id if therapist_user else None,
         "therapist_name": therapist_user.full_name if therapist_user else f"Therapist #{appt.therapist_id}",
         "therapist_picture": therapist_user.profile_picture if therapist_user else None,
         "scheduled_at": str(appt.scheduled_at),
