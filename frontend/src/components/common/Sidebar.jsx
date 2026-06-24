@@ -34,6 +34,7 @@ export default function Sidebar({ role = 'user' }) {
     { icon: <TrendingUp className="w-5 h-5" />, label: 'Mood Tracker', path: '/mood-tracker' },
     { icon: <DollarSign className="w-5 h-5" />, label: 'Payments', path: '/payments' },
     { icon: <Bell className="w-5 h-5" />, label: 'Notifications', path: '/notifications' },
+    { icon: <User className="w-5 h-5" />, label: 'My Profile', path: '/profile' },
   ]
 
   const therapistNavItems = [
