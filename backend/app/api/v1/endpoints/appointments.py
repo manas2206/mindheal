@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import Appointment, TherapistProfile, User, Payment, Review
+from app.services.email_service import (
+    send_appointment_confirmation_email,
+    send_appointment_reminder_email,
+    send_appointment_cancelled_email,
+)
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -16,7 +21,7 @@ router = APIRouter()
 class AppointmentCreate(BaseModel):
     therapist_id: int
     scheduled_at: str
-    duration_mins: int = 50
+    duration_mins: int = 25
     session_type: str = "video"
     notes: Optional[str] = None
 
@@ -44,9 +49,11 @@ async def get_enriched_appointment(appt, db):
         "id": appt.id,
         "user_id": appt.user_id,
         "patient_name": patient_user.full_name if patient_user else f"Patient #{appt.user_id}",
+        "patient_email": patient_user.email if patient_user else None,
         "patient_picture": patient_user.profile_picture if patient_user else None,
         "therapist_id": appt.therapist_id,
         "therapist_user_id": therapist_user.id if therapist_user else None,
+        "therapist_email": therapist_user.email if therapist_user else None,
         "therapist_name": therapist_user.full_name if therapist_user else f"Therapist #{appt.therapist_id}",
         "therapist_picture": therapist_user.profile_picture if therapist_user else None,
         "scheduled_at": str(appt.scheduled_at),
@@ -120,6 +127,7 @@ async def list_appointments(
 @router.post("")
 async def create_appointment(
     body: AppointmentCreate,
+    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -128,6 +136,10 @@ async def create_appointment(
     )
     if not therapist:
         raise HTTPException(status_code=404, detail="Therapist not found")
+
+    therapist_user = await db.scalar(
+        select(User).where(User.id == therapist.user_id)
+    )
 
     try:
         scheduled_at = datetime.fromisoformat(body.scheduled_at.replace('Z', '+00:00'))
@@ -138,7 +150,7 @@ async def create_appointment(
         user_id=current_user.id,
         therapist_id=body.therapist_id,
         scheduled_at=scheduled_at,
-        duration_mins=body.duration_mins,
+        duration_mins=25,
         session_type=body.session_type,
         status='pending',
         notes=body.notes,
@@ -146,6 +158,33 @@ async def create_appointment(
     db.add(appt)
     await db.commit()
     await db.refresh(appt)
+
+    # Format scheduled time for emails
+    scheduled_str = scheduled_at.strftime("%d %b %Y at %I:%M %p")
+
+    # Send confirmation email to patient
+    background_tasks.add_task(
+        send_appointment_confirmation_email,
+        to_email=current_user.email,
+        patient_name=current_user.full_name,
+        therapist_name=therapist_user.full_name if therapist_user else "Your Therapist",
+        scheduled_at=scheduled_str,
+        session_type=body.session_type,
+        role="patient",
+    )
+
+    # Send notification email to therapist
+    if therapist_user:
+        background_tasks.add_task(
+            send_appointment_confirmation_email,
+            to_email=therapist_user.email,
+            patient_name=current_user.full_name,
+            therapist_name=therapist_user.full_name,
+            scheduled_at=scheduled_str,
+            session_type=body.session_type,
+            role="therapist",
+        )
+
     return await get_enriched_appointment(appt, db)
 
 
@@ -166,6 +205,7 @@ async def get_appointment(
 @router.put("/{appointment_id}/confirm")
 async def confirm_appointment(
     appointment_id: int,
+    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -186,12 +226,29 @@ async def confirm_appointment(
 
     appt.status = 'confirmed'
     await db.commit()
+
+    # Send confirmation to patient
+    patient = await db.get(User, appt.user_id)
+    therapist_user = await db.get(User, current_user.id)
+    scheduled_str = appt.scheduled_at.strftime("%d %b %Y at %I:%M %p")
+
+    if patient:
+        background_tasks.add_task(
+            send_appointment_reminder_email,
+            to_email=patient.email,
+            patient_name=patient.full_name,
+            therapist_name=therapist_user.full_name if therapist_user else "Your Therapist",
+            scheduled_at=scheduled_str,
+            session_type=str(appt.session_type),
+        )
+
     return {"message": "Appointment confirmed"}
 
 
 @router.put("/{appointment_id}/cancel")
 async def cancel_appointment(
     appointment_id: int,
+    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -203,6 +260,21 @@ async def cancel_appointment(
 
     appt.status = 'cancelled'
     await db.commit()
+
+    # Send cancellation email
+    enriched = await get_enriched_appointment(appt, db)
+    scheduled_str = appt.scheduled_at.strftime("%d %b %Y at %I:%M %p")
+
+    if enriched.get('patient_email'):
+        background_tasks.add_task(
+            send_appointment_cancelled_email,
+            to_email=enriched['patient_email'],
+            patient_name=enriched['patient_name'],
+            therapist_name=enriched['therapist_name'],
+            scheduled_at=scheduled_str,
+            session_type=str(appt.session_type),
+        )
+
     return {"message": "Appointment cancelled"}
 
 
@@ -223,7 +295,6 @@ async def complete_appointment(
             )
         )
     else:
-        # User can also mark complete (when session ends from their side)
         appt = await db.scalar(
             select(Appointment).where(
                 Appointment.id == appointment_id,
@@ -255,7 +326,6 @@ async def create_review(
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
-    # Check duplicate
     existing = await db.scalar(
         select(Review).where(
             Review.appointment_id == appointment_id,
@@ -275,7 +345,6 @@ async def create_review(
     db.add(review)
     await db.flush()
 
-    # Update therapist rating
     therapist = await db.scalar(
         select(TherapistProfile).where(TherapistProfile.id == appt.therapist_id)
     )
