@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Send, Phone, Video, MoreVertical,
   MessageCircle, Clock, AlertTriangle,
-  Wifi, Check, CheckCheck,
+  Wifi, WifiOff, Check, CheckCheck,
   Star, LogOut, X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -11,7 +11,7 @@ import api from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import Sidebar from '../../components/common/Sidebar'
 
-const SESSION_DURATION = 50 * 60
+const SESSION_DURATION = 25 * 60
 const WARNING_TIME = 5 * 60
 
 export default function ChatPage() {
@@ -33,6 +33,7 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [sessionEnded, setSessionEnded] = useState(false)
 
+  // Review modal state
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
@@ -46,6 +47,7 @@ export default function ChatPage() {
   const pollRef = useRef(null)
   const mountedRef = useRef(true)
 
+  // ── Fetch helpers ──────────────────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     try {
       const res = await api.get('/messages/conversations')
@@ -77,6 +79,7 @@ export default function ChatPage() {
     }, 3000)
   }, [fetchMessages, fetchConversations])
 
+  // ── WebSocket ──────────────────────────────────────────────────────────────
   const connectWebSocket = useCallback(() => {
     if (!user?.user_id) return
     const token = localStorage.getItem('access_token')
@@ -86,7 +89,6 @@ export default function ChatPage() {
 
     const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/v1'
     const wsUrl = `${WS_BASE}/messages/ws/${user.user_id}?token=${token}`
-
     try {
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
@@ -183,12 +185,14 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // ── Session setup ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userId) return
     const sessionKey = `session_${userId}`
     const apptKey = `appt_${userId}`
     const fromSession = sessionStorage.getItem(sessionKey)
     const storedApptId = sessionStorage.getItem(apptKey)
+
     if (fromSession) {
       setIsSessionChat(true)
       if (storedApptId) setAppointmentId(parseInt(storedApptId))
@@ -197,6 +201,7 @@ export default function ChatPage() {
     return () => clearInterval(timerRef.current)
   }, [userId])
 
+  // ── Session timer effects ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isSessionChat || sessionEnded) return
     const remaining = SESSION_DURATION - sessionTime
@@ -210,20 +215,29 @@ export default function ChatPage() {
     }
   }, [sessionTime, isSessionChat, sessionEnded])
 
+  // ── Session end ───────────────────────────────────────────────────────────
   const handleSessionComplete = async (reason = 'manual') => {
     clearInterval(timerRef.current)
     setSessionEnded(true)
     setShowWarning(false)
+
     sessionStorage.removeItem(`session_${userId}`)
     sessionStorage.removeItem(`appt_${userId}`)
+
     if (reason === 'auto') {
-      toast.success('✅ 50 minutes completed! Session ended.', { duration: 3000 })
+      toast.success('✅ 25 minutes completed! Session ended.', { duration: 3000 })
     }
+
+    // Mark appointment completed
     if (appointmentId && user?.role === 'therapist') {
       try {
         await api.put(`/appointments/${appointmentId}/complete`)
-      } catch (e) {}
+      } catch (e) {
+        console.log('Mark complete failed:', e)
+      }
     }
+
+    // Show review for users, redirect therapist
     if (user?.role === 'user') {
       setTimeout(() => setShowReviewModal(true), 800)
     } else {
@@ -237,6 +251,7 @@ export default function ChatPage() {
     handleSessionComplete('manual')
   }
 
+  // ── Submit Review ─────────────────────────────────────────────────────────
   const handleSubmitReview = async () => {
     if (!reviewComment.trim()) {
       toast.error('Please write a comment')
@@ -256,6 +271,7 @@ export default function ChatPage() {
       setShowReviewModal(false)
       navigate('/appointments')
     } catch (error) {
+      // Even if review fails, navigate
       toast.success('Session completed!')
       setShowReviewModal(false)
       navigate('/appointments')
@@ -269,6 +285,7 @@ export default function ChatPage() {
     navigate('/dashboard')
   }
 
+  // ── Send message ──────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !userId || sessionEnded) return
     const content = newMessage.trim()
@@ -309,6 +326,7 @@ export default function ChatPage() {
     }
   }
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
   const formatRemaining = () => {
     const r = SESSION_DURATION - sessionTime
@@ -351,6 +369,7 @@ export default function ChatPage() {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
+
             <div className="text-center mb-5">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-3xl">🎉</span>
@@ -360,6 +379,8 @@ export default function ChatPage() {
                 How was your experience with {currentConversation?.full_name || 'your therapist'}?
               </p>
             </div>
+
+            {/* Stars */}
             <div className="mb-5">
               <p className="text-sm font-medium text-gray-700 text-center mb-3">Rate your session</p>
               <div className="flex items-center justify-center gap-2">
@@ -377,16 +398,19 @@ export default function ChatPage() {
                 {reviewRating === 5 ? '⭐ Excellent' : reviewRating === 4 ? '😊 Good' : reviewRating === 3 ? '😐 Average' : reviewRating === 2 ? '😔 Poor' : '😢 Very Poor'}
               </p>
             </div>
+
+            {/* Comment */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">Share your experience</label>
               <textarea
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="How did the session help you?"
+                placeholder="How did the session help you? What did you like about the therapist?"
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                className="input-field resize-none"
               />
             </div>
+
             <div className="flex gap-3">
               <button onClick={handleSkipReview}
                 className="flex-1 btn-secondary py-2.5 text-sm"
@@ -418,7 +442,7 @@ export default function ChatPage() {
                 <p className="text-gray-500 text-sm">5 minutes remaining</p>
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-5">Your chat session will automatically end at 50 minutes.</p>
+            <p className="text-gray-600 text-sm mb-5">Your chat session will automatically end at 25 minutes.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowWarning(false)}
                 className="flex-1 bg-primary-600 text-white py-2.5 rounded-xl font-medium hover:bg-primary-700"
@@ -440,10 +464,12 @@ export default function ChatPage() {
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-bold text-gray-900 text-lg pl-10 lg:pl-0">Messages</h2>
             <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-              wsConnected ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+              wsConnected ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'
             }`}>
-              <Wifi className="w-3 h-3" />
-              {wsConnected ? 'Live' : 'Connected'}
+              {wsConnected
+                ? <><Wifi className="w-3 h-3" />&nbsp;Live</>
+                : <><WifiOff className="w-3 h-3" />&nbsp;Polling</>
+              }
             </div>
           </div>
 
@@ -471,7 +497,9 @@ export default function ChatPage() {
                 >
                   <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0 relative">
                     <span className="text-primary-700 font-semibold text-sm">{conv.full_name?.charAt(0)}</span>
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                    {conv.is_online && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
@@ -506,7 +534,9 @@ export default function ChatPage() {
                       {currentConversation?.full_name?.charAt(0) || 'U'}
                     </span>
                   </div>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                  {currentConversation?.is_online && (
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">
@@ -515,14 +545,17 @@ export default function ChatPage() {
                   <p className="text-xs">
                     {isTyping ? (
                       <span className="text-primary-600 italic animate-pulse">typing...</span>
-                    ) : (
+                    ) : currentConversation?.is_online ? (
                       <span className="text-green-500">● Online</span>
+                    ) : (
+                      <span className="text-gray-400">Offline</span>
                     )}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Session Timer */}
                 {isSessionChat && !sessionEnded && (
                   <>
                     <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
@@ -543,11 +576,13 @@ export default function ChatPage() {
                     </button>
                   </>
                 )}
+
                 {sessionEnded && (
                   <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full border border-green-200 font-medium">
                     ✅ Session Ended
                   </span>
                 )}
+
                 <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
                   <Phone className="w-5 h-5" />
                 </button>
@@ -618,6 +653,7 @@ export default function ChatPage() {
                     </div>
                   ))}
 
+                  {/* Typing */}
                   {isTyping && (
                     <div className="flex justify-start mt-2">
                       <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-2 flex-shrink-0">
@@ -635,6 +671,7 @@ export default function ChatPage() {
                     </div>
                   )}
 
+                  {/* Session ended separator */}
                   {sessionEnded && (
                     <div className="flex items-center justify-center my-4">
                       <div className="bg-green-50 border border-green-200 text-green-700 text-xs px-4 py-2 rounded-full">
