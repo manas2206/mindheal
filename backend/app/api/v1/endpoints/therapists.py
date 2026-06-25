@@ -125,7 +125,7 @@ async def get_availability(
             "day_of_week": s.day_of_week,
             "start_time": str(s.start_time),
             "end_time": str(s.end_time),
-            "is_available": s.is_available,
+            "is_available": s.is_active,
         }
         for s in slots
     ]}
@@ -159,7 +159,7 @@ async def set_availability(
             day_of_week=slot['day_of_week'],
             start_time=slot['start_time'],
             end_time=slot['end_time'],
-            is_available=slot.get('is_available', True),
+            is_active=slot.get('is_available', True),
         )
         db.add(new_slot)
 
