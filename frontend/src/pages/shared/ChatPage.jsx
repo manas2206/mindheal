@@ -628,7 +628,7 @@ export default function ChatPage() {
                                 </div>
                                 <div className="flex items-center gap-1 mt-1 px-1">
                                   <p className="text-gray-400 text-xs">
-                                    {new Date(msg.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    {new Date(msg.sent_at + 'Z').toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                   {isMe && (
                                     msg.is_read
