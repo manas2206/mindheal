@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  Send, Phone, Video, MoreVertical,
-  MessageCircle, Clock, AlertTriangle,
+  Send, MessageCircle, Clock, AlertTriangle,
   Wifi, WifiOff, Check, CheckCheck,
   Star, LogOut, X
 } from 'lucide-react'
@@ -583,15 +582,7 @@ export default function ChatPage() {
                   </span>
                 )}
 
-                <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                  <Phone className="w-5 h-5" />
-                </button>
-                <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                  <Video className="w-5 h-5" />
-                </button>
-                <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                  <MoreVertical className="w-5 h-5" />
-                </button>
+                
               </div>
             </div>
 
